@@ -3,6 +3,7 @@
 const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const PROFILE_SCOPES = "openid profile email";
 const GOOGLE_USERINFO_ENDPOINT = "https://www.googleapis.com/oauth2/v3/userinfo";
+const DRIVE_UPLOAD_ENDPOINT = "https://www.googleapis.com/upload/drive/v3/files";
 const TOKEN_EXPIRY_BUFFER_MS = 60_000;
 
 export type GoogleDriveProfile = {
@@ -15,6 +16,23 @@ export type GoogleDriveSession = {
   accessToken: string;
   expiresAt: number;
   profile: GoogleDriveProfile;
+};
+
+export type DriveWorkbookPayload = {
+  version: 1;
+  workbook: unknown;
+  metadata: {
+    title: string;
+    lastModified: string;
+    owner: string;
+  };
+};
+
+export type DriveSaveResult = {
+  fileId: string;
+  name: string;
+  modifiedTime: string;
+  shareUrl: string;
 };
 
 type TokenResponse = {
@@ -42,6 +60,12 @@ type GoogleIdentityServices = {
   accounts?: {
     oauth2?: GoogleAccountsOAuth2;
   };
+};
+
+type DriveFileResponse = {
+  id?: string;
+  name?: string;
+  modifiedTime?: string;
 };
 
 declare global {
@@ -185,4 +209,113 @@ export async function signInToGoogleDrive(options: { prompt?: "" | "consent" | "
 export async function getFreshGoogleDriveAccessToken(): Promise<string> {
   const session = await signInToGoogleDrive({ prompt: currentSession ? "" : "consent" });
   return session.accessToken;
+}
+
+export function validateDriveFileId(fileId: string): boolean {
+  return /^[A-Za-z0-9_-]{10,100}$/.test(fileId);
+}
+
+export function createDriveShareUrl(fileId: string): string {
+  if (typeof window === "undefined") {
+    return `/?file=${encodeURIComponent(fileId)}`;
+  }
+
+  return `${window.location.origin}/?file=${encodeURIComponent(fileId)}`;
+}
+
+async function driveRequest(url: string, init: RequestInit): Promise<Response> {
+  const accessToken = await getFreshGoogleDriveAccessToken();
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${accessToken}`);
+
+  const response = await fetch(url, {
+    ...init,
+    headers
+  });
+
+  if (response.status === 401) {
+    currentSession = null;
+    const retryToken = await getFreshGoogleDriveAccessToken();
+    headers.set("Authorization", `Bearer ${retryToken}`);
+    return fetch(url, {
+      ...init,
+      headers
+    });
+  }
+
+  return response;
+}
+
+function multipartBody(metadata: Record<string, string>, payload: DriveWorkbookPayload): { body: Blob; contentType: string } {
+  const boundary = `atom_sheets_${crypto.randomUUID()}`;
+  const delimiter = `--${boundary}`;
+  const closeDelimiter = `--${boundary}--`;
+  const body = new Blob(
+    [
+      `${delimiter}\r\n`,
+      "Content-Type: application/json; charset=UTF-8\r\n\r\n",
+      JSON.stringify(metadata),
+      "\r\n",
+      `${delimiter}\r\n`,
+      "Content-Type: application/json; charset=UTF-8\r\n\r\n",
+      JSON.stringify(payload),
+      "\r\n",
+      closeDelimiter
+    ],
+    { type: `multipart/related; boundary=${boundary}` }
+  );
+
+  return { body, contentType: `multipart/related; boundary=${boundary}` };
+}
+
+function parseDriveFileResponse(response: DriveFileResponse, fallbackName: string): DriveSaveResult {
+  if (!response.id || !validateDriveFileId(response.id)) {
+    throw new Error("Google Drive did not return a valid file id.");
+  }
+
+  return {
+    fileId: response.id,
+    name: response.name ?? fallbackName,
+    modifiedTime: response.modifiedTime ?? new Date().toISOString(),
+    shareUrl: createDriveShareUrl(response.id)
+  };
+}
+
+export async function saveWorkbookToDrive(params: {
+  fileId?: string | null;
+  title: string;
+  payload: DriveWorkbookPayload;
+}): Promise<DriveSaveResult> {
+  if (params.fileId && !validateDriveFileId(params.fileId)) {
+    throw new Error("Invalid Google Drive file id.");
+  }
+
+  const filename = `${params.title.trim() || "Untitled Sheet"}.atom-sheet.json`;
+  const metadata = {
+    name: filename,
+    mimeType: "application/json"
+  };
+  const multipart = multipartBody(metadata, params.payload);
+  const query = "uploadType=multipart&fields=id,name,modifiedTime";
+  const url = params.fileId
+    ? `${DRIVE_UPLOAD_ENDPOINT}/${encodeURIComponent(params.fileId)}?${query}`
+    : `${DRIVE_UPLOAD_ENDPOINT}?${query}`;
+
+  const response = await driveRequest(url, {
+    method: params.fileId ? "PATCH" : "POST",
+    headers: {
+      "Content-Type": multipart.contentType
+    },
+    body: multipart.body
+  });
+
+  if (response.status === 403) {
+    throw new Error("You don't have access to save this sheet to Google Drive.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Google Drive save failed (${response.status}).`);
+  }
+
+  return parseDriveFileResponse((await response.json()) as DriveFileResponse, filename);
 }

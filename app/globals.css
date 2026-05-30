@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --toolbar-height: 40px;
+  --formula-height: 36px;
+  --tabs-height: 38px;
+  --status-height: 28px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #fafafa;
+  color: #171717;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  border-radius: 16px;
+}
+
+canvas {
+  display: block;
+}
+
+::selection {
+  background: rgba(0, 102, 255, 0.18);
+}

@@ -8,6 +8,7 @@ import {
   HardDrive,
   Link2,
   Rows3,
+  RotateCcw,
   Redo2,
   Save,
   Search,
@@ -15,7 +16,9 @@ import {
   Sparkles,
   Trash2,
   Undo2,
-  WandSparkles
+  WandSparkles,
+  ZoomIn,
+  ZoomOut
 } from "lucide-react";
 import { FontControls } from "./FontControls";
 import { FormatControls } from "./FormatControls";
@@ -35,7 +38,7 @@ type ToolbarProps = {
   onNotify: (message: string) => void;
 };
 
-type RibbonTab = "home" | "insert" | "formulas" | "data";
+type RibbonTab = "home" | "insert" | "formulas" | "data" | "view";
 
 export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   const [activeTab, setActiveTab] = useState<RibbonTab>("home");
@@ -58,6 +61,8 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   const setCellInput = useSpreadsheetStore((state) => state.setCellInput);
   const selectCell = useSpreadsheetStore((state) => state.selectCell);
   const importRows = useSpreadsheetStore((state) => state.importRows);
+  const zoom = useSpreadsheetStore((state) => state.zoom);
+  const setZoom = useSpreadsheetStore((state) => state.setZoom);
   const selection = useSpreadsheetStore((state) => state.selection);
   const activeSheet = useSpreadsheetStore((state) => state.getActiveSheet());
   const sheets = useSpreadsheetStore((state) => state.sheets);
@@ -73,8 +78,15 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
     { id: "home", label: "Home" },
     { id: "insert", label: "Insert" },
     { id: "formulas", label: "Formulas" },
-    { id: "data", label: "Data" }
+    { id: "data", label: "Data" },
+    { id: "view", label: "View" }
   ];
+
+  const zoomOptions = [0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+  const zoomPercent = Math.round(zoom * 100);
+  const zoomOut = () => setZoom(zoom - 0.1);
+  const zoomIn = () => setZoom(zoom + 0.1);
+  const resetZoom = () => setZoom(1);
 
   const shareWorkbook = async () => {
     if (driveShareUrl) {
@@ -391,6 +403,83 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
           </button>
         </div>
       ) : null}
+      {activeTab === "view" ? (
+        <div className="flex shrink-0 items-center gap-1 border-r border-neutral-300 pr-2">
+          <button
+            type="button"
+            className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white disabled:opacity-40"
+            onClick={zoomOut}
+            disabled={zoom <= 0.5}
+            aria-label="Zoom out"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </button>
+          <select
+            aria-label="Sheet zoom"
+            className="h-9 rounded-[18px] border border-neutral-200 bg-white px-3 text-xs font-bold text-neutral-700 outline-none focus:border-[#2F7D4D]"
+            value={zoomOptions.includes(zoom) ? String(zoom) : "custom"}
+            onChange={(event) => {
+              if (event.target.value === "custom") {
+                return;
+              }
+              setZoom(Number(event.target.value));
+            }}
+          >
+            {!zoomOptions.includes(zoom) ? <option value="custom">{zoomPercent}%</option> : null}
+            {zoomOptions.map((option) => (
+              <option key={option} value={option}>
+                {Math.round(option * 100)}%
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white disabled:opacity-40"
+            onClick={zoomIn}
+            disabled={zoom >= 2}
+            aria-label="Zoom in"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="flex h-9 items-center gap-1.5 rounded-[18px] px-3 text-xs font-bold text-neutral-700 hover:bg-white"
+            onClick={resetZoom}
+            aria-label="Reset zoom"
+          >
+            <RotateCcw className="h-4 w-4" />
+            100%
+          </button>
+        </div>
+      ) : null}
+      <div className="flex shrink-0 items-center gap-1 border-r border-neutral-300 pr-2">
+        <button
+          type="button"
+          className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white disabled:opacity-40"
+          onClick={zoomOut}
+          disabled={zoom <= 0.5}
+          aria-label="Zoom out"
+        >
+          <ZoomOut className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          className="h-9 min-w-16 rounded-[18px] px-3 text-xs font-bold text-neutral-700 hover:bg-white"
+          onClick={resetZoom}
+          aria-label="Reset zoom to 100 percent"
+        >
+          {zoomPercent}%
+        </button>
+        <button
+          type="button"
+          className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white disabled:opacity-40"
+          onClick={zoomIn}
+          disabled={zoom >= 2}
+          aria-label="Zoom in"
+        >
+          <ZoomIn className="h-4 w-4" />
+        </button>
+      </div>
       <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"

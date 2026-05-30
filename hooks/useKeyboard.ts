@@ -76,6 +76,24 @@ export function useKeyboard() {
         return;
       }
 
+      if (isMeta && (event.key === "+" || event.key === "=")) {
+        event.preventDefault();
+        state.setZoom(state.zoom + 0.1);
+        return;
+      }
+
+      if (isMeta && event.key === "-") {
+        event.preventDefault();
+        state.setZoom(state.zoom - 0.1);
+        return;
+      }
+
+      if (isMeta && event.key === "0") {
+        event.preventDefault();
+        state.setZoom(1);
+        return;
+      }
+
       if (event.ctrlKey && shift && event.key === "End") {
         event.preventDefault();
         const sheet = state.getActiveSheet();

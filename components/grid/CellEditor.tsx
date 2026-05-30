@@ -14,9 +14,24 @@ type CellEditorProps = {
 function editorPosition(sheet: Sheet, row: number, col: number, viewport: Viewport) {
   const frozenCol = col < GRID.frozenColumns;
   const frozenRow = row < GRID.frozenRows;
+  const frozenWidth = Array.from({ length: GRID.frozenColumns }, (_, index) => columnWidth(sheet, index)).reduce(
+    (sum, width) => sum + width,
+    0
+  );
+  const frozenHeight = Array.from({ length: GRID.frozenRows }, (_, index) => rowHeight(sheet, index)).reduce(
+    (sum, height) => sum + height,
+    0
+  );
+  const horizontalOrigin = viewport.scrollLeft + frozenWidth;
+  const verticalOrigin = viewport.scrollTop + frozenHeight;
+
   return {
-    left: GRID.rowHeaderWidth + columnOffset(sheet, col) - (frozenCol ? 0 : viewport.scrollLeft),
-    top: GRID.columnHeaderHeight + rowOffset(sheet, row) - (frozenRow ? 0 : viewport.scrollTop),
+    left: frozenCol
+      ? GRID.rowHeaderWidth + columnOffset(sheet, col)
+      : GRID.rowHeaderWidth + frozenWidth + columnOffset(sheet, col) - horizontalOrigin,
+    top: frozenRow
+      ? GRID.columnHeaderHeight + rowOffset(sheet, row)
+      : GRID.columnHeaderHeight + frozenHeight + rowOffset(sheet, row) - verticalOrigin,
     width: columnWidth(sheet, col),
     height: rowHeight(sheet, row)
   };
@@ -28,6 +43,7 @@ export function CellEditor({ viewport }: CellEditorProps) {
   const commitEdit = useSpreadsheetStore((state) => state.commitEdit);
   const cancelEdit = useSpreadsheetStore((state) => state.cancelEdit);
   const sheet = useSpreadsheetStore((state) => state.getActiveSheet());
+  const zoom = useSpreadsheetStore((state) => state.zoom);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [highlightedSuggestion, setHighlightedSuggestion] = useState(0);
   const editorSession = editMode
@@ -59,8 +75,14 @@ export function CellEditor({ viewport }: CellEditorProps) {
     if (!editMode) {
       return null;
     }
-    return editorPosition(sheet, editMode.address.row, editMode.address.col, viewport);
-  }, [editMode, sheet, viewport]);
+    const logicalPosition = editorPosition(sheet, editMode.address.row, editMode.address.col, viewport);
+    return {
+      left: logicalPosition.left * zoom,
+      top: logicalPosition.top * zoom,
+      width: logicalPosition.width * zoom,
+      height: logicalPosition.height * zoom
+    };
+  }, [editMode, sheet, viewport, zoom]);
 
   if (!editMode || !position) {
     return null;

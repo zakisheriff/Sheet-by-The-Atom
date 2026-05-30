@@ -12,6 +12,7 @@ type LiveCursorProps = {
 
 export function LiveCursor({ participant, viewport }: LiveCursorProps) {
   const sheet = useSpreadsheetStore((state) => state.getActiveSheet());
+  const zoom = useSpreadsheetStore((state) => state.zoom);
 
   if (!participant.cursor) {
     return null;
@@ -19,8 +20,28 @@ export function LiveCursor({ participant, viewport }: LiveCursorProps) {
 
   const frozenCol = participant.cursor.col < GRID.frozenColumns;
   const frozenRow = participant.cursor.row < GRID.frozenRows;
-  const left = GRID.rowHeaderWidth + columnOffset(sheet, participant.cursor.col) - (frozenCol ? 0 : viewport.scrollLeft);
-  const top = GRID.columnHeaderHeight + rowOffset(sheet, participant.cursor.row) - (frozenRow ? 0 : viewport.scrollTop);
+  const frozenWidth = Array.from({ length: GRID.frozenColumns }, (_, index) => columnWidth(sheet, index)).reduce(
+    (sum, width) => sum + width,
+    0
+  );
+  const frozenHeight = Array.from({ length: GRID.frozenRows }, (_, index) => rowHeight(sheet, index)).reduce(
+    (sum, height) => sum + height,
+    0
+  );
+  const left =
+    (frozenCol
+      ? GRID.rowHeaderWidth + columnOffset(sheet, participant.cursor.col)
+      : GRID.rowHeaderWidth +
+        frozenWidth +
+        columnOffset(sheet, participant.cursor.col) -
+        (viewport.scrollLeft + frozenWidth)) * zoom;
+  const top =
+    (frozenRow
+      ? GRID.columnHeaderHeight + rowOffset(sheet, participant.cursor.row)
+      : GRID.columnHeaderHeight +
+        frozenHeight +
+        rowOffset(sheet, participant.cursor.row) -
+        (viewport.scrollTop + frozenHeight)) * zoom;
 
   return (
     <div
@@ -28,8 +49,8 @@ export function LiveCursor({ participant, viewport }: LiveCursorProps) {
       style={{
         left,
         top,
-        width: columnWidth(sheet, participant.cursor.col),
-        height: rowHeight(sheet, participant.cursor.row),
+        width: columnWidth(sheet, participant.cursor.col) * zoom,
+        height: rowHeight(sheet, participant.cursor.row) * zoom,
         border: `2px solid ${participant.user.color}`
       }}
       aria-label={`${participant.user.name} at ${addressLabel(participant.cursor)}`}

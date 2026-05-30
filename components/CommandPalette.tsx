@@ -52,7 +52,7 @@ export function CommandPalette({ onOpenFind, onNotify }: CommandPaletteProps) {
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
-        className="mx-auto mt-24 w-full max-w-xl rounded-lg border border-neutral-200 bg-white"
+        className="mx-auto mt-24 w-full max-w-xl rounded-[20px] border border-neutral-200 bg-white"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-center border-b border-neutral-200 px-3">

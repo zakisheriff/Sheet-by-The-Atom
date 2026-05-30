@@ -42,6 +42,7 @@ type SpreadsheetState = {
   editMode: EditMode;
   clipboard: string;
   commandPaletteOpen: boolean;
+  zoom: number;
   dirty: boolean;
   undoStack: WorkbookSnapshot[];
   redoStack: WorkbookSnapshot[];
@@ -101,6 +102,7 @@ type SpreadsheetState = {
   deleteSheet: (sheetId: string) => void;
   setActiveSheet: (sheetId: string) => void;
   toggleCommandPalette: (open?: boolean) => void;
+  setZoom: (zoom: number) => void;
   markSaved: () => void;
   selectionStats: () => SelectionStats;
 };
@@ -178,6 +180,10 @@ function keyToAddress(key: string): CellAddress | null {
   return Number.isFinite(row) && Number.isFinite(col) ? { row, col } : null;
 }
 
+function clampZoom(zoom: number): number {
+  return Math.min(Math.max(Math.round(zoom * 100) / 100, 0.5), 2);
+}
+
 export const useSpreadsheetStore = create<SpreadsheetState>((set, get) => ({
   workbookId: "local",
   sheets: [createInitialSheet()],
@@ -186,6 +192,7 @@ export const useSpreadsheetStore = create<SpreadsheetState>((set, get) => ({
   editMode: null,
   clipboard: "",
   commandPaletteOpen: false,
+  zoom: 1,
   dirty: false,
   undoStack: [],
   redoStack: [],
@@ -204,6 +211,7 @@ export const useSpreadsheetStore = create<SpreadsheetState>((set, get) => ({
       driveError: driveState.error !== undefined ? driveState.error : state.driveError
     })),
   setDriveSyncStatus: (status, error = null) => set({ driveSyncStatus: status, driveError: error }),
+  setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
   getActiveSheet: () => activeSheetFromState(get()),
   getCell: (address) => {
     const sheet = activeSheetFromState(get());

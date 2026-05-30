@@ -581,14 +581,15 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
   const insertColumnRight = useSpreadsheetStore((state) => state.insertColumnRight);
   const setColumnWidth = useSpreadsheetStore((state) => state.setColumnWidth);
   const setRowHeight = useSpreadsheetStore((state) => state.setRowHeight);
+  const zoom = useSpreadsheetStore((state) => state.zoom);
   const sheets = useSpreadsheetStore((state) => state.sheets);
   const activeSheetId = useSpreadsheetStore((state) => state.activeSheetId);
   const sheet = useMemo(() => sheets.find((candidate) => candidate.id === activeSheetId) ?? sheets[0], [activeSheetId, sheets]);
   const activeFormula = sheet.cells[cellKey(selection.end)]?.formula;
   const metrics = useGridMetrics(viewport);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const totalWidth = useMemo(() => sheetPixelWidth(sheet), [sheet]);
-  const totalHeight = useMemo(() => sheetPixelHeight(sheet), [sheet]);
+  const totalWidth = useMemo(() => sheetPixelWidth(sheet) * zoom, [sheet, zoom]);
+  const totalHeight = useMemo(() => sheetPixelHeight(sheet) * zoom, [sheet, zoom]);
 
   const precedents = useMemo(() => {
     if (!activeFormula) {
@@ -603,10 +604,10 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
       return;
     }
     const nextViewport = {
-      width: scroller.clientWidth,
-      height: scroller.clientHeight,
-      scrollLeft: scroller.scrollLeft,
-      scrollTop: scroller.scrollTop
+      width: scroller.clientWidth / zoom,
+      height: scroller.clientHeight / zoom,
+      scrollLeft: scroller.scrollLeft / zoom,
+      scrollTop: scroller.scrollTop / zoom
     };
     setViewport((current) =>
       current.width === nextViewport.width &&
@@ -617,7 +618,7 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
         : nextViewport
     );
     onViewportChange(nextViewport);
-  }, [onViewportChange]);
+  }, [onViewportChange, zoom]);
 
   useLayoutEffect(() => {
     updateViewport();
@@ -643,11 +644,13 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
 
     let animationFrame = requestAnimationFrame(() => {
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(viewport.width * dpr);
-      canvas.height = Math.floor(viewport.height * dpr);
-      canvas.style.width = `${viewport.width}px`;
-      canvas.style.height = `${viewport.height}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const cssWidth = viewport.width * zoom;
+      const cssHeight = viewport.height * zoom;
+      canvas.width = Math.floor(cssWidth * dpr);
+      canvas.height = Math.floor(cssHeight * dpr);
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+      ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, 0, 0);
       ctx.clearRect(0, 0, viewport.width, viewport.height);
       ctx.fillStyle = sheetBackground;
       ctx.fillRect(0, 0, viewport.width, viewport.height);
@@ -704,7 +707,7 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
     });
 
     return () => cancelAnimationFrame(animationFrame);
-  }, [fillPreview, metrics.visibleRange, precedents, resizePreview, selection, sheet, viewport]);
+  }, [fillPreview, metrics.visibleRange, precedents, resizePreview, selection, sheet, viewport, zoom]);
 
   const cellFromPointer = useCallback(
     (event: { clientX: number; clientY: number }) => {
@@ -713,10 +716,10 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
         return { row: 0, col: 0 };
       }
       const rect = canvas.getBoundingClientRect();
-      const address = pointToCell(sheet, event.clientX - rect.left, event.clientY - rect.top, viewport);
+      const address = pointToCell(sheet, (event.clientX - rect.left) / zoom, (event.clientY - rect.top) / zoom, viewport);
       return mergeRangeForCell(sheet, address)?.start ?? address;
     },
-    [sheet, viewport]
+    [sheet, viewport, zoom]
   );
 
   const canvasPointFromPointer = useCallback((event: { clientX: number; clientY: number }) => {
@@ -725,8 +728,8 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
       return { x: 0, y: 0 };
     }
     const rect = canvas.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-  }, []);
+    return { x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom };
+  }, [zoom]);
 
   const scheduleRangeSelection = useCallback(
     (range: CellRange) => {
@@ -795,10 +798,10 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
       style={{
         backgroundColor: sheetBackground,
         backgroundImage: `linear-gradient(${sheetGridLine} 1px, transparent 1px), linear-gradient(90deg, ${sheetGridLine} 1px, transparent 1px)`,
-        backgroundPosition: `${GRID.rowHeaderWidth - (viewport.scrollLeft % GRID.columnWidth)}px ${
-          GRID.columnHeaderHeight - (viewport.scrollTop % GRID.rowHeight)
+        backgroundPosition: `${(GRID.rowHeaderWidth - (viewport.scrollLeft % GRID.columnWidth)) * zoom}px ${
+          (GRID.columnHeaderHeight - (viewport.scrollTop % GRID.rowHeight)) * zoom
         }px`,
-        backgroundSize: `${GRID.columnWidth}px ${GRID.rowHeight}px`
+        backgroundSize: `${GRID.columnWidth * zoom}px ${GRID.rowHeight * zoom}px`
       }}
     >
       <canvas
@@ -851,8 +854,8 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
             const activeResize = resizeDrag.current;
             const delta =
               activeResize.kind === "column"
-                ? event.clientX - activeResize.startClient
-                : event.clientY - activeResize.startClient;
+                ? (event.clientX - activeResize.startClient) / zoom
+                : (event.clientY - activeResize.startClient) / zoom;
             const currentSize =
               activeResize.kind === "column"
                 ? clampColumnWidth(activeResize.startSize + delta)

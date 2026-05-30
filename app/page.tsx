@@ -31,6 +31,10 @@ type Template = {
   rows: string[][];
 };
 
+function isErrorNotice(message: string) {
+  return /error|failed|invalid|denied|access|offline|could not|can't|cannot/i.test(message);
+}
+
 const templates: Template[] = [
   {
     id: "blank-workbook",
@@ -234,6 +238,7 @@ function DashboardContent() {
   }, [router, searchParams]);
 
   const listedWorkbooks = activeView === "favourites" ? workbooks.filter((workbook) => workbook.favourite) : workbooks;
+  const noticeIsError = isErrorNotice(notice);
 
   return (
     <main className="grid min-h-dvh grid-cols-1 bg-[#f5f6f4] text-neutral-950 md:grid-cols-[240px_1fr]">
@@ -399,7 +404,14 @@ function DashboardContent() {
         )}
       </section>
       {notice ? (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-neutral-950 px-4 py-2 text-sm font-medium text-white">
+        <div
+          className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[18px] border px-3.5 py-2 text-xs font-semibold ${
+            noticeIsError
+              ? "border-red-200 bg-[#FFF1F1] text-red-700"
+              : "border-neutral-800 bg-neutral-950 text-white"
+          }`}
+          role={noticeIsError ? "alert" : "status"}
+        >
           {notice}
         </div>
       ) : null}

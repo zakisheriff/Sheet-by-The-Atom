@@ -25,6 +25,10 @@ type SpreadsheetDocumentProps = {
   workbookId: string;
 };
 
+function isErrorNotice(message: string) {
+  return /error|failed|invalid|denied|access|offline|could not|can't|cannot/i.test(message);
+}
+
 export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
   const setWorkbookId = useSpreadsheetStore((state) => state.setWorkbookId);
   const markSaved = useSpreadsheetStore((state) => state.markSaved);
@@ -48,6 +52,7 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
   const { presence } = useCollaboration(workbookId);
   useKeyboard();
   useDriveSync();
+  const noticeIsError = isErrorNotice(notice);
 
   const notify = useCallback((message: string) => {
     setNotice(message);
@@ -185,7 +190,14 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
       <CommandPalette onOpenFind={() => setFindOpen(true)} onNotify={notify} />
       <FindReplaceDialog open={findOpen} onClose={() => setFindOpen(false)} onNotify={notify} />
       {notice ? (
-        <div className="fixed bottom-12 left-1/2 z-50 -translate-x-1/2 rounded-full bg-neutral-950 px-4 py-2 text-sm font-medium text-white">
+        <div
+          className={`fixed bottom-12 left-1/2 z-50 -translate-x-1/2 rounded-[18px] border px-3.5 py-2 text-xs font-semibold ${
+            noticeIsError
+              ? "border-red-200 bg-[#FFF1F1] text-red-700"
+              : "border-neutral-800 bg-neutral-950 text-white"
+          }`}
+          role={noticeIsError ? "alert" : "status"}
+        >
           {notice}
         </div>
       ) : null}

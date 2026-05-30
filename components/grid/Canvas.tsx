@@ -33,6 +33,10 @@ type CanvasGridProps = {
 const fillHandleSize = 7;
 const fillHandleHitSize = 16;
 const resizeHitSize = 5;
+const sheetBackground = "#FFFFFF";
+const sheetGridLine = "#E5E5E5";
+const sheetHeaderBackground = "#F8F8F8";
+const sheetHeaderDivider = "#B8B8B8";
 const fillHandleCursor =
   'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2720%27 height=%2720%27 viewBox=%270 0 20 20%27%3E%3Cpath d=%27M10 3v14M3 10h14%27 stroke=%27%23000%27 stroke-width=%272.4%27 stroke-linecap=%27square%27/%3E%3C/svg%3E") 10 10, crosshair';
 
@@ -48,10 +52,18 @@ function getCellRect(sheet: Sheet, address: CellAddress, viewport: Viewport) {
   const isFrozenRow = address.row < GRID.frozenRows;
   const width = columnWidth(sheet, address.col);
   const height = rowHeight(sheet, address.row);
+  const frozenWidth = frozenColumnsWidth(sheet);
+  const frozenHeight = frozenRowsHeight(sheet);
+  const horizontalOrigin = viewport.scrollLeft + frozenWidth;
+  const verticalOrigin = viewport.scrollTop + frozenHeight;
 
   return {
-    x: GRID.rowHeaderWidth + columnOffset(sheet, address.col) - (isFrozenCol ? 0 : viewport.scrollLeft),
-    y: GRID.columnHeaderHeight + rowOffset(sheet, address.row) - (isFrozenRow ? 0 : viewport.scrollTop),
+    x: isFrozenCol
+      ? GRID.rowHeaderWidth + columnOffset(sheet, address.col)
+      : GRID.rowHeaderWidth + frozenWidth + columnOffset(sheet, address.col) - horizontalOrigin,
+    y: isFrozenRow
+      ? GRID.columnHeaderHeight + rowOffset(sheet, address.row)
+      : GRID.columnHeaderHeight + frozenHeight + rowOffset(sheet, address.row) - verticalOrigin,
     width,
     height,
     isFrozenCol,
@@ -80,6 +92,17 @@ function isMergeChild(sheet: Sheet, address: CellAddress) {
   return Boolean(
     mergeRange && (address.row !== mergeRange.start.row || address.col !== mergeRange.start.col)
   );
+}
+
+function paintOrder(indexes: number[], frozenCount: number) {
+  return [...indexes].sort((left, right) => {
+    const leftFrozen = left < frozenCount;
+    const rightFrozen = right < frozenCount;
+    if (leftFrozen !== rightFrozen) {
+      return leftFrozen ? 1 : -1;
+    }
+    return left - right;
+  });
 }
 
 function getRangeRect(sheet: Sheet, range: CellRange, viewport: Viewport) {
@@ -223,39 +246,55 @@ function drawHeaders(
   visibleColumns: number[],
   visibleRows: number[]
 ) {
+  const frozenWidth = frozenColumnsWidth(sheet);
+  const frozenHeight = frozenRowsHeight(sheet);
+  const horizontalOrigin = viewport.scrollLeft + frozenWidth;
+  const verticalOrigin = viewport.scrollTop + frozenHeight;
+
   ctx.save();
   ctx.font = "500 12px Inter, ui-sans-serif, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "#FAFAFA";
+  ctx.fillStyle = sheetHeaderBackground;
   ctx.fillRect(0, 0, viewport.width, GRID.columnHeaderHeight);
   ctx.fillRect(0, 0, GRID.rowHeaderWidth, viewport.height);
   ctx.strokeStyle = "#D4D4D4";
 
-  for (const col of visibleColumns) {
+  for (const col of paintOrder(visibleColumns, GRID.frozenColumns)) {
     const isFrozen = col < GRID.frozenColumns;
     const width = columnWidth(sheet, col);
-    const x = GRID.rowHeaderWidth + columnOffset(sheet, col) - (isFrozen ? 0 : viewport.scrollLeft);
-    ctx.fillStyle = "#FAFAFA";
+    const x = isFrozen
+      ? GRID.rowHeaderWidth + columnOffset(sheet, col)
+      : GRID.rowHeaderWidth + frozenWidth + columnOffset(sheet, col) - horizontalOrigin;
+    ctx.fillStyle = sheetHeaderBackground;
     ctx.fillRect(x, 0, width, GRID.columnHeaderHeight);
     ctx.strokeRect(x + 0.5, 0.5, width, GRID.columnHeaderHeight);
     ctx.fillStyle = "#525252";
     ctx.fillText(columnName(col), x + width / 2, GRID.columnHeaderHeight / 2);
   }
 
-  for (const row of visibleRows) {
+  for (const row of paintOrder(visibleRows, GRID.frozenRows)) {
     const isFrozen = row < GRID.frozenRows;
     const height = rowHeight(sheet, row);
-    const y = GRID.columnHeaderHeight + rowOffset(sheet, row) - (isFrozen ? 0 : viewport.scrollTop);
-    ctx.fillStyle = "#FAFAFA";
+    const y = isFrozen
+      ? GRID.columnHeaderHeight + rowOffset(sheet, row)
+      : GRID.columnHeaderHeight + frozenHeight + rowOffset(sheet, row) - verticalOrigin;
+    ctx.fillStyle = sheetHeaderBackground;
     ctx.fillRect(0, y, GRID.rowHeaderWidth, height);
     ctx.strokeRect(0.5, y + 0.5, GRID.rowHeaderWidth, height);
     ctx.fillStyle = "#525252";
     ctx.fillText(String(row + 1), GRID.rowHeaderWidth / 2, y + height / 2);
   }
 
-  ctx.fillStyle = "#FAFAFA";
+  ctx.fillStyle = sheetHeaderBackground;
   ctx.fillRect(0, 0, GRID.rowHeaderWidth, GRID.columnHeaderHeight);
+  ctx.fillStyle = "#ECECEC";
+  ctx.beginPath();
+  ctx.moveTo(0, GRID.columnHeaderHeight);
+  ctx.lineTo(GRID.rowHeaderWidth, 0);
+  ctx.lineTo(GRID.rowHeaderWidth, GRID.columnHeaderHeight);
+  ctx.closePath();
+  ctx.fill();
   ctx.strokeRect(0.5, 0.5, GRID.rowHeaderWidth, GRID.columnHeaderHeight);
   ctx.restore();
 }
@@ -313,21 +352,56 @@ function frozenRowsHeight(sheet: Sheet) {
 }
 
 function columnBoundaryX(sheet: Sheet, col: number, viewport: Viewport) {
+  const frozenWidth = frozenColumnsWidth(sheet);
+  const horizontalOrigin = viewport.scrollLeft + frozenWidth;
+
   return (
-    GRID.rowHeaderWidth +
-    columnOffset(sheet, col) +
-    columnWidth(sheet, col) -
-    (col < GRID.frozenColumns ? 0 : viewport.scrollLeft)
+    (col < GRID.frozenColumns
+      ? GRID.rowHeaderWidth + columnOffset(sheet, col)
+      : GRID.rowHeaderWidth + frozenWidth + columnOffset(sheet, col) - horizontalOrigin) + columnWidth(sheet, col)
   );
 }
 
 function rowBoundaryY(sheet: Sheet, row: number, viewport: Viewport) {
+  const frozenHeight = frozenRowsHeight(sheet);
+  const verticalOrigin = viewport.scrollTop + frozenHeight;
+
   return (
-    GRID.columnHeaderHeight +
-    rowOffset(sheet, row) +
-    rowHeight(sheet, row) -
-    (row < GRID.frozenRows ? 0 : viewport.scrollTop)
+    (row < GRID.frozenRows
+      ? GRID.columnHeaderHeight + rowOffset(sheet, row)
+      : GRID.columnHeaderHeight + frozenHeight + rowOffset(sheet, row) - verticalOrigin) + rowHeight(sheet, row)
   );
+}
+
+function drawFrozenBoundaries(ctx: CanvasRenderingContext2D, sheet: Sheet, viewport: Viewport) {
+  const frozenWidth = frozenColumnsWidth(sheet);
+  const frozenHeight = frozenRowsHeight(sheet);
+
+  ctx.save();
+  ctx.strokeStyle = sheetHeaderDivider;
+  ctx.lineWidth = 1.5;
+
+  if (frozenWidth > 0) {
+    const x = GRID.rowHeaderWidth + frozenWidth + 0.5;
+    if (x > GRID.rowHeaderWidth && x < viewport.width) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, viewport.height);
+      ctx.stroke();
+    }
+  }
+
+  if (frozenHeight > 0) {
+    const y = GRID.columnHeaderHeight + frozenHeight + 0.5;
+    if (y > GRID.columnHeaderHeight && y < viewport.height) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(viewport.width, y);
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore();
 }
 
 function drawSelection(
@@ -383,7 +457,12 @@ function drawSelection(
 
 function findResizeHit(sheet: Sheet, x: number, y: number, viewport: Viewport): ResizeHit | null {
   if (y >= 0 && y <= GRID.columnHeaderHeight && x > GRID.rowHeaderWidth) {
-    const offset = x - GRID.rowHeaderWidth + (x <= GRID.rowHeaderWidth + frozenColumnsWidth(sheet) ? 0 : viewport.scrollLeft);
+    const frozenWidth = frozenColumnsWidth(sheet);
+    const horizontalOrigin = viewport.scrollLeft + frozenWidth;
+    const offset =
+      x <= GRID.rowHeaderWidth + frozenWidth
+        ? x - GRID.rowHeaderWidth
+        : horizontalOrigin + x - GRID.rowHeaderWidth - frozenWidth;
     const col = columnAtOffset(sheet, offset);
     const candidates = [col - 1, col];
 
@@ -399,7 +478,12 @@ function findResizeHit(sheet: Sheet, x: number, y: number, viewport: Viewport): 
   }
 
   if (x >= 0 && x <= GRID.rowHeaderWidth && y > GRID.columnHeaderHeight) {
-    const offset = y - GRID.columnHeaderHeight + (y <= GRID.columnHeaderHeight + frozenRowsHeight(sheet) ? 0 : viewport.scrollTop);
+    const frozenHeight = frozenRowsHeight(sheet);
+    const verticalOrigin = viewport.scrollTop + frozenHeight;
+    const offset =
+      y <= GRID.columnHeaderHeight + frozenHeight
+        ? y - GRID.columnHeaderHeight
+        : verticalOrigin + y - GRID.columnHeaderHeight - frozenHeight;
     const row = rowAtOffset(sheet, offset);
     const candidates = [row - 1, row];
 
@@ -567,7 +651,7 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
       canvas.style.height = `${viewport.height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, viewport.width, viewport.height);
-      ctx.fillStyle = "#FFFFFF";
+      ctx.fillStyle = sheetBackground;
       ctx.fillRect(0, 0, viewport.width, viewport.height);
       ctx.font = CELL_FONT;
 
@@ -588,9 +672,11 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
 
       const visibleColumns = Array.from(columns).sort((left, right) => left - right);
       const visibleRows = Array.from(rows).sort((left, right) => left - right);
+      const paintColumns = paintOrder(visibleColumns, GRID.frozenColumns);
+      const paintRows = paintOrder(visibleRows, GRID.frozenRows);
 
-      for (const row of visibleRows) {
-        for (const col of visibleColumns) {
+      for (const row of paintRows) {
+        for (const col of paintColumns) {
           const address = { row, col };
           if (isMergeChild(sheet, address)) {
             continue;
@@ -611,6 +697,7 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
       }
 
       drawHeaders(ctx, sheet, viewport, visibleColumns, visibleRows);
+      drawFrozenBoundaries(ctx, sheet, viewport);
       drawSelection(ctx, sheet, selection, viewport);
       if (fillPreview) {
         drawSelection(ctx, sheet, fillPreview, viewport, true);
@@ -707,14 +794,21 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
       ref={scrollerRef}
       onScroll={updateViewport}
       className="relative min-h-0 flex-1 overflow-auto bg-white"
-      style={{}}
+      style={{
+        backgroundColor: sheetBackground,
+        backgroundImage: `linear-gradient(${sheetGridLine} 1px, transparent 1px), linear-gradient(90deg, ${sheetGridLine} 1px, transparent 1px)`,
+        backgroundPosition: `${GRID.rowHeaderWidth - (viewport.scrollLeft % GRID.columnWidth)}px ${
+          GRID.columnHeaderHeight - (viewport.scrollTop % GRID.rowHeight)
+        }px`,
+        backgroundSize: `${GRID.columnWidth}px ${GRID.rowHeight}px`
+      }}
     >
       <canvas
         ref={canvasRef}
         role="grid"
         aria-label={`Spreadsheet grid, selected ${addressLabel(selection.end)}`}
         tabIndex={0}
-        className="sticky left-0 top-0 z-10 cursor-cell outline-none"
+        className="sticky left-0 top-0 z-10 cursor-cell bg-white outline-none"
         style={{ cursor }}
         onPointerDown={(event) => {
           setContextMenu(null);

@@ -25,7 +25,6 @@ import { useSpreadsheetStore } from "@/lib/store";
 import {
   saveWorkbookToDrive,
   signInToGoogleDrive,
-  type DriveSaveResult,
   type DriveWorkbookPayload,
   type GoogleDriveSession
 } from "@/lib/driveService";
@@ -44,7 +43,6 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   const [driveSession, setDriveSession] = useState<GoogleDriveSession | null>(null);
   const [driveSigningIn, setDriveSigningIn] = useState(false);
   const [driveSaving, setDriveSaving] = useState(false);
-  const [driveSaveResult, setDriveSaveResult] = useState<DriveSaveResult | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const undo = useSpreadsheetStore((state) => state.undo);
@@ -63,6 +61,11 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   const sheets = useSpreadsheetStore((state) => state.sheets);
   const activeSheetId = useSpreadsheetStore((state) => state.activeSheetId);
   const workbookId = useSpreadsheetStore((state) => state.workbookId);
+  const driveFileId = useSpreadsheetStore((state) => state.driveFileId);
+  const driveShareUrl = useSpreadsheetStore((state) => state.driveShareUrl);
+  const driveSyncStatus = useSpreadsheetStore((state) => state.driveSyncStatus);
+  const driveError = useSpreadsheetStore((state) => state.driveError);
+  const setDriveState = useSpreadsheetStore((state) => state.setDriveState);
 
   const tabs: Array<{ id: RibbonTab; label: string }> = [
     { id: "home", label: "Home" },
@@ -72,7 +75,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   ];
 
   const shareWorkbook = async () => {
-    if (driveSaveResult) {
+    if (driveShareUrl) {
       setShareModalOpen(true);
       return;
     }
@@ -94,19 +97,6 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
     onNotify(`Exported ${filename}`);
   };
 
-  const signInDrive = async () => {
-    setDriveSigningIn(true);
-    try {
-      const session = await signInToGoogleDrive();
-      setDriveSession(session);
-      onNotify(`Signed in as ${session.profile.name}`);
-    } catch (error) {
-      onNotify(error instanceof Error ? error.message : "Google Drive sign-in failed");
-    } finally {
-      setDriveSigningIn(false);
-    }
-  };
-
   const workbookTitle = workbookId === "demo-workbook" ? "Financial Model" : activeSheet.name || "Untitled Sheet";
 
   const drivePayload = (session: GoogleDriveSession): DriveWorkbookPayload => ({
@@ -126,14 +116,23 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   const saveToDrive = async () => {
     setDriveSaving(true);
     try {
+      if (!driveSession) {
+        setDriveSigningIn(true);
+      }
       const session = driveSession ?? (await signInToGoogleDrive());
       setDriveSession(session);
       const result = await saveWorkbookToDrive({
-        fileId: driveSaveResult?.fileId,
+        fileId: driveFileId,
         title: workbookTitle,
         payload: drivePayload(session)
       });
-      setDriveSaveResult(result);
+      setDriveState({
+        fileId: result.fileId,
+        modifiedTime: result.modifiedTime,
+        shareUrl: result.shareUrl,
+        status: "saved",
+        error: null
+      });
       markSaved();
       onNotify("Saved to Google Drive");
     } catch (error) {
@@ -145,13 +144,26 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   };
 
   const copyDriveLink = async () => {
-    if (!driveSaveResult) {
+    if (!driveShareUrl) {
       return;
     }
 
-    await navigator.clipboard.writeText(driveSaveResult.shareUrl);
+    await navigator.clipboard.writeText(driveShareUrl);
     onNotify("Drive link copied");
   };
+
+  const driveButtonLabel =
+    driveSaving || driveSyncStatus === "syncing"
+      ? "Syncing..."
+      : driveSyncStatus === "offline"
+        ? "Offline"
+        : driveSyncStatus === "error"
+          ? "Sync error"
+          : driveFileId
+            ? "Saved to Drive ✓"
+            : driveSigningIn
+              ? "Signing in..."
+              : "Save to Drive";
 
   const isNumericCell = (sheet: Sheet, address: CellAddress) =>
     typeof sheet.cells[cellKey(address)]?.value === "number";
@@ -462,11 +474,9 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         ) : (
           <HardDrive className="h-4 w-4" />
         )}
-        <span className="hidden sm:inline">
-          {driveSaving ? "Saving..." : driveSaveResult ? "Saved to Drive ✓" : driveSigningIn ? "Signing in..." : "Save to Drive"}
-        </span>
+        <span className="hidden sm:inline">{driveButtonLabel}</span>
       </button>
-      {driveSaveResult ? (
+      {driveShareUrl ? (
         <button
           type="button"
           className="grid h-9 w-9 shrink-0 place-items-center rounded-[18px] border border-[#2F7D4D]/30 bg-white text-[#2F7D4D] transition hover:bg-[#ecf6ef]"
@@ -485,8 +495,10 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         <Share2 className="h-4 w-4" />
         Share
       </button>
-      <div className="text-xs font-medium text-neutral-500">{dirty ? "Unsaved changes" : "Saved"}</div>
-      {shareModalOpen && driveSaveResult ? (
+      <div className="text-xs font-medium text-neutral-500">
+        {driveError ?? (dirty ? "Unsaved changes" : driveFileId ? "Drive synced" : "Saved")}
+      </div>
+      {shareModalOpen && driveShareUrl ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/20 px-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-lg rounded-[24px] border border-neutral-200 bg-white p-5 text-neutral-950">
             <div className="flex items-start justify-between gap-4">
@@ -508,7 +520,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
             <div className="mt-5 flex gap-2 rounded-[18px] border border-neutral-200 bg-neutral-50 p-2">
               <input
                 readOnly
-                value={driveSaveResult.shareUrl}
+                value={driveShareUrl}
                 className="min-w-0 flex-1 bg-transparent px-2 text-sm font-medium outline-none"
                 aria-label="Drive share link"
               />

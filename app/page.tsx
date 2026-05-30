@@ -17,7 +17,7 @@ import {
   Rows3
 } from "lucide-react";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { fetchWorkbookFromDrive, validateDriveFileId } from "@/lib/driveService";
+import { createDriveShareUrl, fetchDriveFileMetadata, fetchWorkbookFromDrive, validateDriveFileId } from "@/lib/driveService";
 import { importWorkbookFile } from "@/lib/workbook-io";
 
 type DashboardView = "templates" | "recents" | "favourites";
@@ -214,13 +214,16 @@ function DashboardContent() {
     }
 
     notify("Opening Google Drive sheet...");
-    void fetchWorkbookFromDrive(fileId)
-      .then((payload) => {
+    void Promise.all([fetchWorkbookFromDrive(fileId), fetchDriveFileMetadata(fileId)])
+      .then(([payload, metadata]) => {
         window.localStorage.setItem(
           "atom:pending-workbook-state",
           JSON.stringify({
             ...payload.workbook,
-            workbookId: `drive-${fileId}`
+            workbookId: `drive-${fileId}`,
+            driveFileId: fileId,
+            driveModifiedTime: metadata.modifiedTime,
+            driveShareUrl: createDriveShareUrl(fileId)
           })
         );
         router.push(`/drive-${fileId}`);

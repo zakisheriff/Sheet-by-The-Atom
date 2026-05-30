@@ -15,6 +15,7 @@ import { CommandPalette } from "./CommandPalette";
 import { FindReplaceDialog } from "./FindReplaceDialog";
 import { StatusBar } from "./StatusBar";
 import { useCollaboration } from "@/hooks/useCollaboration";
+import { useDriveSync } from "@/hooks/useDriveSync";
 import type { Viewport } from "@/hooks/useGrid";
 import { useKeyboard } from "@/hooks/useKeyboard";
 import type { Sheet } from "@/lib/grid";
@@ -30,6 +31,7 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
   const dirty = useSpreadsheetStore((state) => state.dirty);
   const importRows = useSpreadsheetStore((state) => state.importRows);
   const hydrateWorkbook = useSpreadsheetStore((state) => state.hydrateWorkbook);
+  const setDriveState = useSpreadsheetStore((state) => state.setDriveState);
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 500, scrollLeft: 0, scrollTop: 0 });
   const [findOpen, setFindOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -45,6 +47,7 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
   }, []);
   const { presence } = useCollaboration(workbookId);
   useKeyboard();
+  useDriveSync();
 
   const notify = useCallback((message: string) => {
     setNotice(message);
@@ -69,12 +72,22 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
           workbookId?: string;
           activeSheetId?: string;
           sheets?: Sheet[];
+          driveFileId?: string;
+          driveModifiedTime?: string;
+          driveShareUrl?: string;
         };
         if (Array.isArray(workbook.sheets) && typeof workbook.activeSheetId === "string") {
           hydrateWorkbook({
             workbookId: workbook.workbookId,
             activeSheetId: workbook.activeSheetId,
             sheets: workbook.sheets
+          });
+          setDriveState({
+            fileId: workbook.driveFileId,
+            modifiedTime: workbook.driveModifiedTime,
+            shareUrl: workbook.driveShareUrl,
+            status: workbook.driveFileId ? "saved" : "local",
+            error: null
           });
           notify("Opened shared Drive sheet");
         }
@@ -110,7 +123,7 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
     } finally {
       window.localStorage.removeItem("atom:pending-import");
     }
-  }, [hydrateWorkbook, importRows, notify]);
+  }, [hydrateWorkbook, importRows, notify, setDriveState]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {

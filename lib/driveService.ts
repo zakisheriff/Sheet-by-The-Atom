@@ -44,6 +44,10 @@ export type DriveSaveResult = {
   shareUrl: string;
 };
 
+export type DriveFileMetadata = {
+  modifiedTime: string;
+};
+
 type TokenResponse = {
   access_token?: string;
   expires_in?: number;
@@ -472,6 +476,36 @@ export async function saveWorkbookToDrive(params: {
   }
 
   return parseDriveFileResponse((await response.json()) as DriveFileResponse, filename);
+}
+
+export async function fetchDriveFileMetadata(fileId: string): Promise<DriveFileMetadata> {
+  if (!validateDriveFileId(fileId)) {
+    throw new Error("Invalid Google Drive file id.");
+  }
+
+  const response = await driveRequest(
+    `${DRIVE_FILES_ENDPOINT}/${encodeURIComponent(fileId)}?fields=modifiedTime`,
+    { method: "GET" }
+  );
+
+  if (response.status === 404) {
+    throw new Error("This sheet no longer exists or access was removed.");
+  }
+
+  if (response.status === 403) {
+    throw new Error("You don't have access to this sheet. Request access from the owner.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Google Drive metadata check failed (${response.status}).`);
+  }
+
+  const metadata = (await response.json()) as Partial<DriveFileMetadata>;
+  if (!metadata.modifiedTime) {
+    throw new Error("Google Drive did not return a modified time.");
+  }
+
+  return { modifiedTime: metadata.modifiedTime };
 }
 
 export async function fetchWorkbookFromDrive(fileId: string): Promise<DriveWorkbookPayload> {

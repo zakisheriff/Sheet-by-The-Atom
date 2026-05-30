@@ -32,6 +32,8 @@ type WorkbookSnapshot = {
   selection: CellRange;
 };
 
+export type DriveSyncStatus = "local" | "syncing" | "saved" | "offline" | "error";
+
 type SpreadsheetState = {
   workbookId: string;
   sheets: Sheet[];
@@ -43,7 +45,20 @@ type SpreadsheetState = {
   dirty: boolean;
   undoStack: WorkbookSnapshot[];
   redoStack: WorkbookSnapshot[];
+  driveFileId: string | null;
+  driveModifiedTime: string | null;
+  driveShareUrl: string | null;
+  driveSyncStatus: DriveSyncStatus;
+  driveError: string | null;
   setWorkbookId: (workbookId: string) => void;
+  setDriveState: (state: {
+    fileId?: string | null;
+    modifiedTime?: string | null;
+    shareUrl?: string | null;
+    status?: DriveSyncStatus;
+    error?: string | null;
+  }) => void;
+  setDriveSyncStatus: (status: DriveSyncStatus, error?: string | null) => void;
   getActiveSheet: () => Sheet;
   getCell: (address: CellAddress) => CellData;
   selectCell: (address: CellAddress, extending?: boolean) => void;
@@ -174,7 +189,21 @@ export const useSpreadsheetStore = create<SpreadsheetState>((set, get) => ({
   dirty: false,
   undoStack: [],
   redoStack: [],
+  driveFileId: null,
+  driveModifiedTime: null,
+  driveShareUrl: null,
+  driveSyncStatus: "local",
+  driveError: null,
   setWorkbookId: (workbookId) => set({ workbookId }),
+  setDriveState: (driveState) =>
+    set((state) => ({
+      driveFileId: driveState.fileId !== undefined ? driveState.fileId : state.driveFileId,
+      driveModifiedTime: driveState.modifiedTime !== undefined ? driveState.modifiedTime : state.driveModifiedTime,
+      driveShareUrl: driveState.shareUrl !== undefined ? driveState.shareUrl : state.driveShareUrl,
+      driveSyncStatus: driveState.status ?? state.driveSyncStatus,
+      driveError: driveState.error !== undefined ? driveState.error : state.driveError
+    })),
+  setDriveSyncStatus: (status, error = null) => set({ driveSyncStatus: status, driveError: error }),
   getActiveSheet: () => activeSheetFromState(get()),
   getCell: (address) => {
     const sheet = activeSheetFromState(get());

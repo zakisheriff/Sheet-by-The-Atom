@@ -22,6 +22,7 @@ export function useDriveSync() {
   const latestState = useRef(useSpreadsheetStore.getState());
   const saveInFlight = useRef(false);
   const pollInFlight = useRef(false);
+  const queuedSaveSignature = useRef("");
 
   useEffect(() => {
     return useSpreadsheetStore.subscribe((state) => {
@@ -35,6 +36,9 @@ export function useDriveSync() {
       const state = useSpreadsheetStore.getState();
       if (state.driveFileId) {
         state.setDriveSyncStatus(state.dirty ? "syncing" : "saved");
+        if (state.dirty && getGoogleDriveSession()) {
+          void saveCurrentWorkbook();
+        }
       }
     };
 
@@ -53,6 +57,16 @@ export function useDriveSync() {
       if (!state.driveFileId || !state.dirty || !session) {
         return;
       }
+
+      const signature = JSON.stringify({
+        workbookId: state.workbookId,
+        activeSheetId: state.activeSheetId,
+        sheets: state.sheets
+      });
+      if (signature === queuedSaveSignature.current) {
+        return;
+      }
+      queuedSaveSignature.current = signature;
 
       if (saveTimer !== null) {
         window.clearTimeout(saveTimer);
@@ -142,6 +156,7 @@ export function useDriveSync() {
       useSpreadsheetStore.getState().setDriveSyncStatus("error", error instanceof Error ? error.message : "Drive sync failed");
     } finally {
       saveInFlight.current = false;
+      queuedSaveSignature.current = "";
     }
   }
 

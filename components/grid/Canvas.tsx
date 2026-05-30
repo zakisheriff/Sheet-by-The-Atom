@@ -217,10 +217,8 @@ function drawCell(
   precedents: CellAddress[]
 ) {
   const cell = sheet.cells[cellKey(address)];
-  if (cell?.style.fillColor) {
-    ctx.fillStyle = cell.style.fillColor;
-    ctx.fillRect(x, y, width, height);
-  }
+  ctx.fillStyle = cell?.style.fillColor ?? sheetBackground;
+  ctx.fillRect(x, y, width, height);
 
   if (isCellInRange(address, selection)) {
     ctx.fillStyle = "rgba(0, 102, 255, 0.08)";

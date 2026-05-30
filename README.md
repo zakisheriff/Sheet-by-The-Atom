@@ -244,6 +244,7 @@ DATABASE_URL="postgresql://username:password@localhost:5432/atom_sheets"
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="replace-with-a-secure-secret"
 REDIS_URL="redis://localhost:6379"
+NEXT_PUBLIC_GOOGLE_CLIENT_ID="your-google-oauth-client-id.apps.googleusercontent.com"
 ```
 
 ### 4. Generate Prisma Client

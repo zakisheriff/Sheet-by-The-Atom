@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import {
   Columns3,
   Download,
+  HardDrive,
   Rows3,
   Redo2,
   Save,
@@ -19,6 +20,7 @@ import { FormatControls } from "./FormatControls";
 import type { CellAddress, CellRange, Sheet } from "@/lib/grid";
 import { cellKey, normalizeRange, rangeLabel } from "@/lib/grid";
 import { useSpreadsheetStore } from "@/lib/store";
+import { signInToGoogleDrive, type GoogleDriveSession } from "@/lib/driveService";
 import { downloadBlob, exportSheetBlob, importWorkbookFile, type WorkbookExportFormat } from "@/lib/workbook-io";
 
 type ToolbarProps = {
@@ -31,6 +33,8 @@ type RibbonTab = "home" | "insert" | "formulas" | "data";
 export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   const [activeTab, setActiveTab] = useState<RibbonTab>("home");
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [driveSession, setDriveSession] = useState<GoogleDriveSession | null>(null);
+  const [driveSigningIn, setDriveSigningIn] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const undo = useSpreadsheetStore((state) => state.undo);
   const redo = useSpreadsheetStore((state) => state.redo);
@@ -69,6 +73,19 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
     downloadBlob(blob, filename);
     setExportMenuOpen(false);
     onNotify(`Exported ${filename}`);
+  };
+
+  const signInDrive = async () => {
+    setDriveSigningIn(true);
+    try {
+      const session = await signInToGoogleDrive();
+      setDriveSession(session);
+      onNotify(`Signed in as ${session.profile.name}`);
+    } catch (error) {
+      onNotify(error instanceof Error ? error.message : "Google Drive sign-in failed");
+    } finally {
+      setDriveSigningIn(false);
+    }
   };
 
   const isNumericCell = (sheet: Sheet, address: CellAddress) =>
@@ -367,6 +384,26 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
       <button
         type="button"
         className="ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-[18px] border border-[#2F7D4D]/30 bg-white px-4 text-xs font-bold text-[#2F7D4D] transition hover:bg-[#ecf6ef]"
+        onClick={() => void signInDrive()}
+        disabled={driveSigningIn}
+        aria-label="Save to Google Drive"
+      >
+        {driveSession?.profile.picture ? (
+          <span
+            aria-hidden="true"
+            className="h-5 w-5 rounded-full bg-cover bg-center"
+            style={{ backgroundImage: `url(${driveSession.profile.picture})` }}
+          />
+        ) : (
+          <HardDrive className="h-4 w-4" />
+        )}
+        <span className="hidden sm:inline">
+          {driveSession ? `${driveSession.profile.name} ✓` : driveSigningIn ? "Signing in..." : "Save to Drive"}
+        </span>
+      </button>
+      <button
+        type="button"
+        className="flex h-9 shrink-0 items-center gap-1.5 rounded-[18px] border border-[#2F7D4D]/30 bg-white px-4 text-xs font-bold text-[#2F7D4D] transition hover:bg-[#ecf6ef]"
         onClick={shareWorkbook}
         aria-label="Share workbook"
       >

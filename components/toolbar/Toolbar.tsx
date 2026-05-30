@@ -3,8 +3,10 @@
 import { useRef, useState } from "react";
 import {
   Columns3,
+  Copy,
   Download,
   HardDrive,
+  Link2,
   Rows3,
   Redo2,
   Save,
@@ -20,7 +22,13 @@ import { FormatControls } from "./FormatControls";
 import type { CellAddress, CellRange, Sheet } from "@/lib/grid";
 import { cellKey, normalizeRange, rangeLabel } from "@/lib/grid";
 import { useSpreadsheetStore } from "@/lib/store";
-import { signInToGoogleDrive, type GoogleDriveSession } from "@/lib/driveService";
+import {
+  saveWorkbookToDrive,
+  signInToGoogleDrive,
+  type DriveSaveResult,
+  type DriveWorkbookPayload,
+  type GoogleDriveSession
+} from "@/lib/driveService";
 import { downloadBlob, exportSheetBlob, importWorkbookFile, type WorkbookExportFormat } from "@/lib/workbook-io";
 
 type ToolbarProps = {
@@ -35,6 +43,9 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [driveSession, setDriveSession] = useState<GoogleDriveSession | null>(null);
   const [driveSigningIn, setDriveSigningIn] = useState(false);
+  const [driveSaving, setDriveSaving] = useState(false);
+  const [driveSaveResult, setDriveSaveResult] = useState<DriveSaveResult | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const undo = useSpreadsheetStore((state) => state.undo);
   const redo = useSpreadsheetStore((state) => state.redo);
@@ -49,6 +60,9 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   const importRows = useSpreadsheetStore((state) => state.importRows);
   const selection = useSpreadsheetStore((state) => state.selection);
   const activeSheet = useSpreadsheetStore((state) => state.getActiveSheet());
+  const sheets = useSpreadsheetStore((state) => state.sheets);
+  const activeSheetId = useSpreadsheetStore((state) => state.activeSheetId);
+  const workbookId = useSpreadsheetStore((state) => state.workbookId);
 
   const tabs: Array<{ id: RibbonTab; label: string }> = [
     { id: "home", label: "Home" },
@@ -58,6 +72,11 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   ];
 
   const shareWorkbook = async () => {
+    if (driveSaveResult) {
+      setShareModalOpen(true);
+      return;
+    }
+
     const url = window.location.href;
     if (navigator.share) {
       await navigator.share({ title: "Atom Sheets", url });
@@ -86,6 +105,52 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
     } finally {
       setDriveSigningIn(false);
     }
+  };
+
+  const workbookTitle = workbookId === "demo-workbook" ? "Financial Model" : activeSheet.name || "Untitled Sheet";
+
+  const drivePayload = (session: GoogleDriveSession): DriveWorkbookPayload => ({
+    version: 1,
+    workbook: {
+      workbookId,
+      activeSheetId,
+      sheets
+    },
+    metadata: {
+      title: workbookTitle,
+      lastModified: new Date().toISOString(),
+      owner: session.profile.email
+    }
+  });
+
+  const saveToDrive = async () => {
+    setDriveSaving(true);
+    try {
+      const session = driveSession ?? (await signInToGoogleDrive());
+      setDriveSession(session);
+      const result = await saveWorkbookToDrive({
+        fileId: driveSaveResult?.fileId,
+        title: workbookTitle,
+        payload: drivePayload(session)
+      });
+      setDriveSaveResult(result);
+      markSaved();
+      onNotify("Saved to Google Drive");
+    } catch (error) {
+      onNotify(error instanceof Error ? error.message : "Google Drive save failed");
+    } finally {
+      setDriveSaving(false);
+      setDriveSigningIn(false);
+    }
+  };
+
+  const copyDriveLink = async () => {
+    if (!driveSaveResult) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(driveSaveResult.shareUrl);
+    onNotify("Drive link copied");
   };
 
   const isNumericCell = (sheet: Sheet, address: CellAddress) =>
@@ -384,8 +449,8 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
       <button
         type="button"
         className="ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-[18px] border border-[#2F7D4D]/30 bg-white px-4 text-xs font-bold text-[#2F7D4D] transition hover:bg-[#ecf6ef]"
-        onClick={() => void signInDrive()}
-        disabled={driveSigningIn}
+        onClick={() => void saveToDrive()}
+        disabled={driveSigningIn || driveSaving}
         aria-label="Save to Google Drive"
       >
         {driveSession?.profile.picture ? (
@@ -398,9 +463,19 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
           <HardDrive className="h-4 w-4" />
         )}
         <span className="hidden sm:inline">
-          {driveSession ? `${driveSession.profile.name} ✓` : driveSigningIn ? "Signing in..." : "Save to Drive"}
+          {driveSaving ? "Saving..." : driveSaveResult ? "Saved to Drive ✓" : driveSigningIn ? "Signing in..." : "Save to Drive"}
         </span>
       </button>
+      {driveSaveResult ? (
+        <button
+          type="button"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-[18px] border border-[#2F7D4D]/30 bg-white text-[#2F7D4D] transition hover:bg-[#ecf6ef]"
+          onClick={() => setShareModalOpen(true)}
+          aria-label="Open Drive share link"
+        >
+          <Link2 className="h-4 w-4" />
+        </button>
+      ) : null}
       <button
         type="button"
         className="flex h-9 shrink-0 items-center gap-1.5 rounded-[18px] border border-[#2F7D4D]/30 bg-white px-4 text-xs font-bold text-[#2F7D4D] transition hover:bg-[#ecf6ef]"
@@ -411,6 +486,44 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         Share
       </button>
       <div className="text-xs font-medium text-neutral-500">{dirty ? "Unsaved changes" : "Saved"}</div>
+      {shareModalOpen && driveSaveResult ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/20 px-4" role="dialog" aria-modal="true">
+          <div className="w-full max-w-lg rounded-[24px] border border-neutral-200 bg-white p-5 text-neutral-950">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-extrabold">Share Drive sheet</h2>
+                <p className="mt-1 text-sm font-medium text-neutral-500">
+                  Anyone with access to the Drive file can open this Atom Sheets link.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-500 hover:bg-neutral-100"
+                onClick={() => setShareModalOpen(false)}
+                aria-label="Close share dialog"
+              >
+                ×
+              </button>
+            </div>
+            <div className="mt-5 flex gap-2 rounded-[18px] border border-neutral-200 bg-neutral-50 p-2">
+              <input
+                readOnly
+                value={driveSaveResult.shareUrl}
+                className="min-w-0 flex-1 bg-transparent px-2 text-sm font-medium outline-none"
+                aria-label="Drive share link"
+              />
+              <button
+                type="button"
+                className="flex h-10 shrink-0 items-center gap-2 rounded-[16px] bg-[#2F7D4D] px-4 text-sm font-bold text-white hover:bg-[#24643d]"
+                onClick={() => void copyDriveLink()}
+              >
+                <Copy className="h-4 w-4" />
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

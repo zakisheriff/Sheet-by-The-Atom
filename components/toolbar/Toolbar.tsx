@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import {
   Columns3,
   Copy,
@@ -44,6 +44,8 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
   const [driveSigningIn, setDriveSigningIn] = useState(false);
   const [driveSaving, setDriveSaving] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [exportMenuPosition, setExportMenuPosition] = useState<CSSProperties | null>(null);
+  const exportButtonRef = useRef<HTMLButtonElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const undo = useSpreadsheetStore((state) => state.undo);
   const redo = useSpreadsheetStore((state) => state.redo);
@@ -94,7 +96,25 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
     const { blob, filename } = await exportSheetBlob(activeSheet, format);
     downloadBlob(blob, filename);
     setExportMenuOpen(false);
+    setExportMenuPosition(null);
     onNotify(`Exported ${filename}`);
+  };
+
+  const toggleExportMenu = () => {
+    const button = exportButtonRef.current;
+    if (!button) {
+      setExportMenuOpen((open) => !open);
+      return;
+    }
+
+    const rect = button.getBoundingClientRect();
+    const menuWidth = 240;
+    setExportMenuPosition({
+      top: rect.bottom + 8,
+      left: Math.min(Math.max(12, rect.right - menuWidth), window.innerWidth - menuWidth - 12),
+      width: menuWidth
+    });
+    setExportMenuOpen((open) => !open);
   };
 
   const workbookTitle = workbookId === "demo-workbook" ? "Financial Model" : activeSheet.name || "Untitled Sheet";
@@ -400,33 +420,14 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         </button>
         <div className="relative">
           <button
+            ref={exportButtonRef}
             type="button"
             className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white"
-            onClick={() => setExportMenuOpen((open) => !open)}
+            onClick={toggleExportMenu}
             aria-label="Export workbook"
           >
             <Download className="h-4 w-4" />
           </button>
-          {exportMenuOpen ? (
-            <div className="absolute right-0 top-10 z-50 w-56 overflow-hidden rounded-[20px] border border-neutral-200 bg-white py-1 text-sm">
-              {[
-                ["xlsx", "Excel workbook (.xlsx)"],
-                ["google-sheets", "Google Sheets-ready (.xlsx)"],
-                ["csv", "CSV (.csv)"],
-                ["tsv", "Tab-separated (.tsv)"],
-                ["json", "JSON workbook data"]
-              ].map(([format, label]) => (
-                <button
-                  key={format}
-                  type="button"
-                  className="block w-full px-3 py-2 text-left hover:bg-green-50"
-                  onClick={() => void exportWorkbook(format as WorkbookExportFormat)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          ) : null}
         </div>
       </div>
       <input
@@ -498,6 +499,40 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
       <div className="text-xs font-medium text-neutral-500">
         {driveError ?? (dirty ? "Unsaved changes" : driveFileId ? "Drive synced" : "Saved")}
       </div>
+      {exportMenuOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close export menu"
+            className="fixed inset-0 z-40 cursor-default bg-transparent"
+            onClick={() => {
+              setExportMenuOpen(false);
+              setExportMenuPosition(null);
+            }}
+          />
+          <div
+            className="fixed z-50 overflow-hidden rounded-[20px] border border-neutral-200 bg-white py-1 text-sm shadow-[0_18px_50px_rgba(0,0,0,0.14)]"
+            style={exportMenuPosition ?? undefined}
+          >
+            {[
+              ["xlsx", "Excel workbook (.xlsx)"],
+              ["google-sheets", "Google Sheets-ready (.xlsx)"],
+              ["csv", "CSV (.csv)"],
+              ["tsv", "Tab-separated (.tsv)"],
+              ["json", "JSON workbook data"]
+            ].map(([format, label]) => (
+              <button
+                key={format}
+                type="button"
+                className="block w-full px-3 py-2.5 text-left text-neutral-800 hover:bg-green-50"
+                onClick={() => void exportWorkbook(format as WorkbookExportFormat)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
       {shareModalOpen && driveShareUrl ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/20 px-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-lg rounded-[24px] border border-neutral-200 bg-white p-5 text-neutral-950">

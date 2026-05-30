@@ -1,9 +1,12 @@
 "use client";
 
+import type { CellData, CellRange, Sheet } from "./grid";
+
 const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const PROFILE_SCOPES = "openid profile email";
 const GOOGLE_USERINFO_ENDPOINT = "https://www.googleapis.com/oauth2/v3/userinfo";
 const DRIVE_UPLOAD_ENDPOINT = "https://www.googleapis.com/upload/drive/v3/files";
+const DRIVE_FILES_ENDPOINT = "https://www.googleapis.com/drive/v3/files";
 const TOKEN_EXPIRY_BUFFER_MS = 60_000;
 
 export type GoogleDriveProfile = {
@@ -20,12 +23,18 @@ export type GoogleDriveSession = {
 
 export type DriveWorkbookPayload = {
   version: 1;
-  workbook: unknown;
+  workbook: DriveWorkbookState;
   metadata: {
     title: string;
     lastModified: string;
     owner: string;
   };
+};
+
+export type DriveWorkbookState = {
+  workbookId: string;
+  activeSheetId: string;
+  sheets: Sheet[];
 };
 
 export type DriveSaveResult = {
@@ -67,6 +76,151 @@ type DriveFileResponse = {
   name?: string;
   modifiedTime?: string;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function numberMap(value: unknown): Record<number, number> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, entry]) => [Number.parseInt(key, 10), typeof entry === "number" && Number.isFinite(entry) ? entry : null] as const)
+      .filter((entry): entry is readonly [number, number] => Number.isFinite(entry[0]) && entry[1] !== null)
+  );
+}
+
+function cellDataMap(value: unknown): Record<string, CellData> {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  const cells: Record<string, CellData> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (!/^\d+:\d+$/.test(key) || !isRecord(entry)) {
+      continue;
+    }
+
+    cells[key] = {
+      value:
+        typeof entry.value === "string" ||
+        typeof entry.value === "number" ||
+        typeof entry.value === "boolean" ||
+        entry.value === null
+          ? entry.value
+          : "",
+      displayValue: typeof entry.displayValue === "string" ? entry.displayValue : "",
+      formula: typeof entry.formula === "string" ? entry.formula : undefined,
+      format: isRecord(entry.format)
+        ? {
+            kind:
+              entry.format.kind === "number" ||
+              entry.format.kind === "formula" ||
+              entry.format.kind === "date" ||
+              entry.format.kind === "boolean" ||
+              entry.format.kind === "currency"
+                ? entry.format.kind
+                : "text",
+            numberFormat:
+              entry.format.numberFormat === "currency" ||
+              entry.format.numberFormat === "percent" ||
+              entry.format.numberFormat === "decimal"
+                ? entry.format.numberFormat
+                : "plain",
+            currencySymbol: typeof entry.format.currencySymbol === "string" ? entry.format.currencySymbol : undefined
+          }
+        : { kind: "text", numberFormat: "plain" },
+      style: isRecord(entry.style) ? entry.style : {},
+      error: typeof entry.error === "string" ? entry.error : undefined
+    };
+  }
+
+  return cells;
+}
+
+function addressFromUnknown(value: unknown): { row: number; col: number } | null {
+  if (!isRecord(value) || typeof value.row !== "number" || typeof value.col !== "number") {
+    return null;
+  }
+
+  return Number.isFinite(value.row) && Number.isFinite(value.col)
+    ? { row: Math.max(0, Math.floor(value.row)), col: Math.max(0, Math.floor(value.col)) }
+    : null;
+}
+
+function mergedCells(value: unknown): CellRange[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry)) {
+      return [];
+    }
+    const start = addressFromUnknown(entry.start);
+    const end = addressFromUnknown(entry.end);
+    return start && end ? [{ start, end }] : [];
+  });
+}
+
+function sanitizeSheet(value: unknown, index: number): Sheet | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = stringOr(value.id, `sheet-${index + 1}`);
+  return {
+    id,
+    name: stringOr(value.name, `Sheet ${index + 1}`),
+    cells: cellDataMap(value.cells),
+    rowHeights: numberMap(value.rowHeights),
+    columnWidths: numberMap(value.columnWidths),
+    mergedCells: mergedCells(value.mergedCells)
+  };
+}
+
+function sanitizeDriveWorkbookPayload(value: unknown): DriveWorkbookPayload {
+  if (!isRecord(value) || value.version !== 1 || !isRecord(value.workbook)) {
+    throw new Error("This Drive file is not a valid Atom Sheets workbook.");
+  }
+
+  const sheets = Array.isArray(value.workbook.sheets)
+    ? value.workbook.sheets.flatMap((sheet, index) => sanitizeSheet(sheet, index) ?? [])
+    : [];
+
+  if (sheets.length === 0) {
+    throw new Error("This Drive workbook does not contain any sheets.");
+  }
+
+  const activeSheetId = stringOr(value.workbook.activeSheetId, sheets[0].id);
+
+  return {
+    version: 1,
+    workbook: {
+      workbookId: stringOr(value.workbook.workbookId, "drive-workbook"),
+      activeSheetId: sheets.some((sheet) => sheet.id === activeSheetId) ? activeSheetId : sheets[0].id,
+      sheets
+    },
+    metadata: isRecord(value.metadata)
+      ? {
+          title: stringOr(value.metadata.title, "Untitled Sheet"),
+          lastModified: stringOr(value.metadata.lastModified, new Date().toISOString()),
+          owner: typeof value.metadata.owner === "string" ? value.metadata.owner : ""
+        }
+      : {
+          title: "Untitled Sheet",
+          lastModified: new Date().toISOString(),
+          owner: ""
+        }
+  };
+}
 
 declare global {
   interface Window {
@@ -318,4 +472,28 @@ export async function saveWorkbookToDrive(params: {
   }
 
   return parseDriveFileResponse((await response.json()) as DriveFileResponse, filename);
+}
+
+export async function fetchWorkbookFromDrive(fileId: string): Promise<DriveWorkbookPayload> {
+  if (!validateDriveFileId(fileId)) {
+    throw new Error("Invalid Google Drive file id.");
+  }
+
+  const response = await driveRequest(`${DRIVE_FILES_ENDPOINT}/${encodeURIComponent(fileId)}?alt=media`, {
+    method: "GET"
+  });
+
+  if (response.status === 404) {
+    throw new Error("This sheet no longer exists or access was removed.");
+  }
+
+  if (response.status === 403) {
+    throw new Error("You don't have access to this sheet. Request access from the owner.");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Google Drive open failed (${response.status}).`);
+  }
+
+  return sanitizeDriveWorkbookPayload(await response.json());
 }

@@ -29,6 +29,7 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
   const markSaved = useSpreadsheetStore((state) => state.markSaved);
   const dirty = useSpreadsheetStore((state) => state.dirty);
   const importRows = useSpreadsheetStore((state) => state.importRows);
+  const hydrateWorkbook = useSpreadsheetStore((state) => state.hydrateWorkbook);
   const [viewport, setViewport] = useState<Viewport>({ width: 800, height: 500, scrollLeft: 0, scrollTop: 0 });
   const [findOpen, setFindOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -61,6 +62,28 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
   }, [setWorkbookId, workbookId]);
 
   useEffect(() => {
+    const pendingState = window.localStorage.getItem("atom:pending-workbook-state");
+    if (pendingState) {
+      try {
+        const workbook = JSON.parse(pendingState) as {
+          workbookId?: string;
+          activeSheetId?: string;
+          sheets?: Sheet[];
+        };
+        if (Array.isArray(workbook.sheets) && typeof workbook.activeSheetId === "string") {
+          hydrateWorkbook({
+            workbookId: workbook.workbookId,
+            activeSheetId: workbook.activeSheetId,
+            sheets: workbook.sheets
+          });
+          notify("Opened shared Drive sheet");
+        }
+      } finally {
+        window.localStorage.removeItem("atom:pending-workbook-state");
+      }
+      return;
+    }
+
     const pending = window.localStorage.getItem("atom:pending-import");
     if (!pending) {
       return;
@@ -87,7 +110,7 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
     } finally {
       window.localStorage.removeItem("atom:pending-import");
     }
-  }, [importRows, notify]);
+  }, [hydrateWorkbook, importRows, notify]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {

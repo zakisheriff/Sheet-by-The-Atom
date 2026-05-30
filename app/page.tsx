@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart3,
   Calculator,
@@ -16,7 +16,8 @@ import {
   ReceiptText,
   Rows3
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { fetchWorkbookFromDrive, validateDriveFileId } from "@/lib/driveService";
 import { importWorkbookFile } from "@/lib/workbook-io";
 
 type DashboardView = "templates" | "recents" | "favourites";
@@ -162,11 +163,13 @@ function TemplatePreview({ template }: { template: Template }) {
   );
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeView, setActiveView] = useState<DashboardView>("templates");
   const [notice, setNotice] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const openedDriveFileRef = useRef<string | null>(null);
 
   const notify = (message: string) => {
     setNotice(message);
@@ -197,6 +200,35 @@ export default function DashboardPage() {
 
     setActiveView(id);
   };
+
+  useEffect(() => {
+    const fileId = searchParams.get("file");
+    if (!fileId || openedDriveFileRef.current === fileId) {
+      return;
+    }
+
+    openedDriveFileRef.current = fileId;
+    if (!validateDriveFileId(fileId)) {
+      notify("Invalid Google Drive file link");
+      return;
+    }
+
+    notify("Opening Google Drive sheet...");
+    void fetchWorkbookFromDrive(fileId)
+      .then((payload) => {
+        window.localStorage.setItem(
+          "atom:pending-workbook-state",
+          JSON.stringify({
+            ...payload.workbook,
+            workbookId: `drive-${fileId}`
+          })
+        );
+        router.push(`/drive-${fileId}`);
+      })
+      .catch((error: unknown) => {
+        notify(error instanceof Error ? error.message : "Could not open Drive sheet");
+      });
+  }, [router, searchParams]);
 
   const listedWorkbooks = activeView === "favourites" ? workbooks.filter((workbook) => workbook.favourite) : workbooks;
 
@@ -369,5 +401,13 @@ export default function DashboardPage() {
         </div>
       ) : null}
     </main>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<main className="min-h-dvh bg-[#f5f6f4]" />}>
+      <DashboardContent />
+    </Suspense>
   );
 }

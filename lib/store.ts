@@ -71,6 +71,7 @@ type SpreadsheetState = {
       mergedCells?: Sheet["mergedCells"];
     }
   ) => void;
+  hydrateWorkbook: (workbook: { sheets: Sheet[]; activeSheetId: string; workbookId?: string }) => void;
   exportActiveSheetCsv: () => string;
   beginEdit: (address: CellAddress, initialValue?: string) => void;
   commitEdit: (input: string, move?: CellAddress) => void;
@@ -534,6 +535,35 @@ export const useSpreadsheetStore = create<SpreadsheetState>((set, get) => ({
         });
       })
     );
+  },
+  hydrateWorkbook: (workbook) => {
+    const sheets = workbook.sheets.map((sheet) =>
+      recalculateSheet({
+        ...sheet,
+        cells: { ...sheet.cells },
+        rowHeights: { ...sheet.rowHeights },
+        columnWidths: { ...sheet.columnWidths },
+        mergedCells: [...sheet.mergedCells]
+      })
+    );
+    if (sheets.length === 0) {
+      return;
+    }
+
+    const activeSheetId = sheets.some((sheet) => sheet.id === workbook.activeSheetId)
+      ? workbook.activeSheetId
+      : sheets[0].id;
+
+    set({
+      workbookId: workbook.workbookId ?? get().workbookId,
+      sheets,
+      activeSheetId,
+      selection: firstSelection,
+      editMode: null,
+      undoStack: [],
+      redoStack: [],
+      dirty: false
+    });
   },
   exportActiveSheetCsv: () => {
     const sheet = activeSheetFromState(get());

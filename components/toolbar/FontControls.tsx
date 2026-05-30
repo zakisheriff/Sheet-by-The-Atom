@@ -19,7 +19,7 @@ export function FontControls() {
   return (
     <div className="flex items-center gap-1 border-r border-neutral-200 pr-2">
       <select
-        className="h-7 w-32 rounded border border-neutral-200 bg-white px-2 text-xs outline-none focus:border-accent"
+        className="h-8 w-36 rounded-[16px] border border-neutral-200 bg-white px-3 text-xs font-semibold outline-none focus:border-accent"
         aria-label="Font family"
         onChange={(event) => applyStyle({ fontFamily: event.target.value })}
         defaultValue="SFMono-Regular"
@@ -31,7 +31,7 @@ export function FontControls() {
         ))}
       </select>
       <input
-        className="h-7 w-14 rounded border border-neutral-200 px-2 text-xs outline-none focus:border-accent"
+        className="h-8 w-16 rounded-[16px] border border-neutral-200 px-3 text-xs font-semibold outline-none focus:border-accent"
         aria-label="Font size"
         type="number"
         min={8}
@@ -47,7 +47,7 @@ export function FontControls() {
       />
       <button
         type="button"
-        className="grid h-7 w-7 place-items-center rounded text-neutral-700 transition hover:bg-neutral-100"
+        className="grid h-8 w-8 place-items-center rounded-[16px] text-neutral-700 transition hover:bg-neutral-100"
         onClick={() => applyStyle({ bold: !cell.style.bold })}
         aria-label="Bold"
       >
@@ -55,7 +55,7 @@ export function FontControls() {
       </button>
       <button
         type="button"
-        className="grid h-7 w-7 place-items-center rounded text-neutral-700 transition hover:bg-neutral-100"
+        className="grid h-8 w-8 place-items-center rounded-[16px] text-neutral-700 transition hover:bg-neutral-100"
         onClick={() => applyStyle({ italic: !cell.style.italic })}
         aria-label="Italic"
       >
@@ -63,7 +63,7 @@ export function FontControls() {
       </button>
       <button
         type="button"
-        className="grid h-7 w-7 place-items-center rounded text-neutral-700 transition hover:bg-neutral-100"
+        className="grid h-8 w-8 place-items-center rounded-[16px] text-neutral-700 transition hover:bg-neutral-100"
         onClick={() => applyStyle({ underline: !cell.style.underline })}
         aria-label="Underline"
       >

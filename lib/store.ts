@@ -23,6 +23,7 @@ type EditMode = {
   initialValue: string;
   currentValue: string;
   pickingFormulaRange: boolean;
+  startedWithTyping: boolean;
 } | null;
 
 type WorkbookSnapshot = {
@@ -60,7 +61,16 @@ type SpreadsheetState = {
   setRowHeight: (row: number, height: number) => void;
   fillSelectionTo: (target: CellAddress) => void;
   replaceAll: (findText: string, replaceText: string) => number;
-  importRows: (rows: string[][], sheetName: string) => void;
+  importRows: (
+    rows: string[][],
+    sheetName: string,
+    options?: {
+      cells?: Sheet["cells"];
+      rowHeights?: Sheet["rowHeights"];
+      columnWidths?: Sheet["columnWidths"];
+      mergedCells?: Sheet["mergedCells"];
+    }
+  ) => void;
   exportActiveSheetCsv: () => string;
   beginEdit: (address: CellAddress, initialValue?: string) => void;
   commitEdit: (input: string, move?: CellAddress) => void;
@@ -105,7 +115,8 @@ function createInitialSheet(): Sheet {
     name: "Sheet 1",
     cells,
     rowHeights: {},
-    columnWidths: {}
+    columnWidths: {},
+    mergedCells: []
   });
 }
 
@@ -497,24 +508,29 @@ export const useSpreadsheetStore = create<SpreadsheetState>((set, get) => ({
 
     return replaced;
   },
-  importRows: (rows, sheetName) => {
+  importRows: (rows, sheetName, options) => {
     set((state) =>
       updateActiveSheet(state, (sheet) => {
-        const cells: Sheet["cells"] = {};
+        const cells: Sheet["cells"] = options?.cells ? { ...options.cells } : {};
 
-        rows.forEach((row, rowIndex) => {
-          row.forEach((value, colIndex) => {
-            if (value.trim().length === 0) {
-              return;
-            }
-            cells[cellKey({ row: rowIndex, col: colIndex })] = inferCellData(value);
+        if (!options?.cells) {
+          rows.forEach((row, rowIndex) => {
+            row.forEach((value, colIndex) => {
+              if (value.trim().length === 0) {
+                return;
+              }
+              cells[cellKey({ row: rowIndex, col: colIndex })] = inferCellData(value);
+            });
           });
-        });
+        }
 
         return recalculateSheet({
           ...sheet,
           name: sheetName.trim() || sheet.name,
-          cells
+          cells,
+          rowHeights: options?.rowHeights ?? {},
+          columnWidths: options?.columnWidths ?? {},
+          mergedCells: options?.mergedCells ?? []
         });
       })
     );
@@ -552,7 +568,8 @@ export const useSpreadsheetStore = create<SpreadsheetState>((set, get) => ({
         address,
         initialValue: value,
         currentValue: value,
-        pickingFormulaRange: false
+        pickingFormulaRange: false,
+        startedWithTyping: initialValue !== undefined
       }
     });
   },
@@ -670,7 +687,8 @@ export const useSpreadsheetStore = create<SpreadsheetState>((set, get) => ({
             name: `Sheet ${state.sheets.length + 1}`,
             cells: {},
             rowHeights: {},
-            columnWidths: {}
+            columnWidths: {},
+            mergedCells: []
           }
         ],
         activeSheetId: id,

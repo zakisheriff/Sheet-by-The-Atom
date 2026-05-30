@@ -12,26 +12,26 @@ export function FormatControls() {
 
   return (
     <div className="flex items-center gap-1 border-r border-neutral-200 pr-2">
-      <div className="flex items-center gap-1 rounded border border-neutral-200 px-1 py-0.5">
+      <div className="flex items-center gap-1 rounded-[16px] border border-neutral-200 bg-white px-1.5 py-1">
         <Pipette className="h-3.5 w-3.5 text-neutral-500" aria-hidden="true" />
         {swatches.map((color) => (
           <button
             key={color}
             type="button"
-            className="h-5 w-5 rounded border border-neutral-200"
+            className="h-5 w-5 rounded-[8px] border border-neutral-200"
             style={{ backgroundColor: color }}
             onClick={() => applyStyle({ textColor: color })}
             aria-label={`Text color ${color}`}
           />
         ))}
       </div>
-      <div className="flex items-center gap-1 rounded border border-neutral-200 px-1 py-0.5">
+      <div className="flex items-center gap-1 rounded-[16px] border border-neutral-200 bg-white px-1.5 py-1">
         <PaintBucket className="h-3.5 w-3.5 text-neutral-500" aria-hidden="true" />
         {fills.map((color) => (
           <button
             key={color}
             type="button"
-            className="h-5 w-5 rounded border border-neutral-200"
+            className="h-5 w-5 rounded-[8px] border border-neutral-200"
             style={{ backgroundColor: color }}
             onClick={() => applyStyle({ fillColor: color })}
             aria-label={`Fill color ${color}`}
@@ -40,7 +40,7 @@ export function FormatControls() {
       </div>
       <button
         type="button"
-        className="grid h-7 w-7 place-items-center rounded text-neutral-700 transition hover:bg-neutral-100"
+        className="grid h-8 w-8 place-items-center rounded-[16px] text-neutral-700 transition hover:bg-neutral-100"
         onClick={() => applyStyle({ align: "left" })}
         aria-label="Align left"
       >
@@ -48,7 +48,7 @@ export function FormatControls() {
       </button>
       <button
         type="button"
-        className="grid h-7 w-7 place-items-center rounded text-neutral-700 transition hover:bg-neutral-100"
+        className="grid h-8 w-8 place-items-center rounded-[16px] text-neutral-700 transition hover:bg-neutral-100"
         onClick={() => applyStyle({ align: "center" })}
         aria-label="Align center"
       >
@@ -56,7 +56,7 @@ export function FormatControls() {
       </button>
       <button
         type="button"
-        className="grid h-7 w-7 place-items-center rounded text-neutral-700 transition hover:bg-neutral-100"
+        className="grid h-8 w-8 place-items-center rounded-[16px] text-neutral-700 transition hover:bg-neutral-100"
         onClick={() => applyStyle({ align: "right" })}
         aria-label="Align right"
       >
@@ -64,7 +64,7 @@ export function FormatControls() {
       </button>
       <button
         type="button"
-        className="grid h-7 w-7 place-items-center rounded text-neutral-700 transition hover:bg-neutral-100"
+        className="grid h-8 w-8 place-items-center rounded-[16px] text-neutral-700 transition hover:bg-neutral-100"
         onClick={() => applyNumberFormat("currency")}
         aria-label="Currency format"
       >
@@ -72,7 +72,7 @@ export function FormatControls() {
       </button>
       <button
         type="button"
-        className="grid h-7 w-7 place-items-center rounded text-neutral-700 transition hover:bg-neutral-100"
+        className="grid h-8 w-8 place-items-center rounded-[16px] text-neutral-700 transition hover:bg-neutral-100"
         onClick={() => applyNumberFormat("decimal")}
         aria-label="Decimal format"
       >
@@ -80,7 +80,7 @@ export function FormatControls() {
       </button>
       <button
         type="button"
-        className="grid h-7 w-7 place-items-center rounded text-neutral-700 transition hover:bg-neutral-100"
+        className="grid h-8 w-8 place-items-center rounded-[16px] text-neutral-700 transition hover:bg-neutral-100"
         onClick={() => applyNumberFormat("percent")}
         aria-label="Percent format"
       >

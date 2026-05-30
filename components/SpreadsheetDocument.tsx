@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { CanvasGrid } from "./grid/Canvas";
 import { CellEditor } from "./grid/CellEditor";
 import { FormulaBar } from "./grid/FormulaBar";
@@ -15,6 +17,7 @@ import { StatusBar } from "./StatusBar";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import type { Viewport } from "@/hooks/useGrid";
 import { useKeyboard } from "@/hooks/useKeyboard";
+import type { Sheet } from "@/lib/grid";
 import { useSpreadsheetStore } from "@/lib/store";
 
 type SpreadsheetDocumentProps = {
@@ -64,9 +67,21 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
     }
 
     try {
-      const workbook = JSON.parse(pending) as { name?: string; rows?: string[][] };
+      const workbook = JSON.parse(pending) as {
+        name?: string;
+        rows?: string[][];
+        cells?: Sheet["cells"];
+        rowHeights?: Sheet["rowHeights"];
+        columnWidths?: Sheet["columnWidths"];
+        mergedCells?: Sheet["mergedCells"];
+      };
       if (Array.isArray(workbook.rows)) {
-        importRows(workbook.rows, workbook.name ?? "Imported workbook");
+        importRows(workbook.rows, workbook.name ?? "Imported workbook", {
+          cells: workbook.cells,
+          rowHeights: workbook.rowHeights,
+          columnWidths: workbook.columnWidths,
+          mergedCells: workbook.mergedCells
+        });
         notify(`Imported ${workbook.name ?? "workbook"}`);
       }
     } finally {
@@ -86,16 +101,19 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
 
   return (
     <main className="flex h-dvh min-w-0 flex-col overflow-hidden bg-[#f3f4f2] text-neutral-950">
-      <header className="flex min-h-10 items-center justify-between gap-2 bg-[#217346] px-2 text-white sm:px-4">
+      <header className="flex min-h-12 items-center justify-between gap-2 bg-[#2F7D4D] px-2 text-white sm:px-4">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5" aria-hidden="true">
-            <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-            <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-            <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-          </div>
+          <Link
+            href="/"
+            className="flex h-9 items-center gap-2 rounded-[18px] bg-white/12 px-3 text-xs font-bold text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50"
+            aria-label="Back to start page"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Start</span>
+          </Link>
           <button
             type="button"
-            className="rounded bg-white/12 px-2 py-1 text-xs font-medium hover:bg-white/20"
+            className="h-9 rounded-[18px] bg-white/12 px-3 text-xs font-bold hover:bg-white/20"
             onClick={() => notify("Autosave runs every 30 seconds")}
           >
             AutoSave off
@@ -108,7 +126,7 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            className="hidden h-7 w-56 items-center rounded bg-white/15 px-3 text-left text-xs text-white/80 hover:bg-white/20 md:flex"
+            className="hidden h-9 w-64 items-center rounded-[18px] bg-white/15 px-4 text-left text-xs font-semibold text-white/80 hover:bg-white/20 md:flex"
             onClick={() => useSpreadsheetStore.getState().toggleCommandPalette(true)}
           >
             Search commands

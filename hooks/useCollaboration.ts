@@ -15,11 +15,15 @@ export function useCollaboration(workbookId: string) {
     const updatePresence = () => setPresence(getPresenceStates(session));
     awareness.on("change", updatePresence);
     updatePresence();
-    session.provider.connect();
+    if (session.online) {
+      session.provider.connect();
+    }
 
     return () => {
       awareness.off("change", updatePresence);
-      session.provider.disconnect();
+      if (session.online) {
+        session.provider.disconnect();
+      }
       session.doc.destroy();
     };
   }, [session]);

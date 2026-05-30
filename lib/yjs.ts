@@ -19,6 +19,7 @@ export type CollaborationSession = {
   doc: Y.Doc;
   provider: WebsocketProvider;
   cells: Y.Map<string>;
+  online: boolean;
 };
 
 const userColors = ["#0066FF", "#34C759", "#FF9500", "#AF52DE", "#FF2D55"];
@@ -34,14 +35,15 @@ function makeUser(): AwarenessUser {
 
 export function createCollaborationSession(workbookId: string): CollaborationSession {
   const doc = new Y.Doc();
-  const wsUrl = process.env.NEXT_PUBLIC_YJS_WEBSOCKET_URL ?? "ws://localhost:1234";
-  const provider = new WebsocketProvider(wsUrl, workbookId, doc, { connect: false });
+  const wsUrl = process.env.NEXT_PUBLIC_YJS_WEBSOCKET_URL;
+  const provider = new WebsocketProvider(wsUrl ?? "ws://localhost:1234", workbookId, doc, { connect: false });
   provider.awareness.setLocalStateField("user", makeUser());
 
   return {
     doc,
     provider,
-    cells: doc.getMap("cells")
+    cells: doc.getMap("cells"),
+    online: Boolean(wsUrl)
   };
 }
 

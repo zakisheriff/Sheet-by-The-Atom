@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import {
   Columns3,
   Download,
-  FileSpreadsheet,
   Rows3,
   Redo2,
   Save,
@@ -165,12 +164,11 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
             type="button"
             className={
               activeTab === tab.id
-                ? "flex h-8 items-center gap-1.5 rounded-md bg-[#217346] px-3 text-xs font-semibold text-white"
-                : "h-8 rounded-md px-3 text-xs font-semibold text-neutral-700 hover:bg-white"
+                ? "flex h-9 items-center gap-1.5 rounded-[18px] bg-[#2F7D4D] px-4 text-xs font-bold text-white"
+                : "h-9 rounded-[18px] px-4 text-xs font-bold text-neutral-700 hover:bg-white"
             }
             onClick={() => setActiveTab(tab.id)}
           >
-            {tab.id === "home" ? <FileSpreadsheet className="h-4 w-4" /> : null}
             {tab.label}
           </button>
         ))}
@@ -178,7 +176,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
       <div className="flex shrink-0 items-center gap-1 border-r border-neutral-300 pr-2 sm:pr-3">
         <button
           type="button"
-          className="grid h-8 w-8 place-items-center rounded-md text-neutral-700 transition hover:bg-white"
+          className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white"
           onClick={undo}
           aria-label="Undo"
         >
@@ -186,7 +184,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         </button>
         <button
           type="button"
-          className="grid h-8 w-8 place-items-center rounded-md text-neutral-700 transition hover:bg-white"
+          className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white"
           onClick={redo}
           aria-label="Redo"
         >
@@ -194,7 +192,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         </button>
         <button
           type="button"
-          className="grid h-8 w-8 place-items-center rounded-md text-neutral-700 transition hover:bg-white"
+          className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white"
           onClick={markSaved}
           aria-label="Save"
         >
@@ -211,7 +209,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         <div className="flex shrink-0 items-center gap-1 border-r border-neutral-300 pr-2">
           <button
             type="button"
-            className="flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-neutral-700 hover:bg-white"
+            className="flex h-9 items-center gap-1.5 rounded-[18px] px-4 text-xs font-bold text-neutral-700 hover:bg-white"
             onClick={() => {
               insertRowBelow();
               onNotify("Inserted row below selection");
@@ -222,7 +220,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
           </button>
           <button
             type="button"
-            className="flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-neutral-700 hover:bg-white"
+            className="flex h-9 items-center gap-1.5 rounded-[18px] px-4 text-xs font-bold text-neutral-700 hover:bg-white"
             onClick={() => {
               insertColumnRight();
               onNotify("Inserted column right of selection");
@@ -239,7 +237,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
             <button
               key={formula}
               type="button"
-              className="h-8 rounded-md px-3 text-xs font-semibold text-neutral-700 hover:bg-white"
+              className="h-9 rounded-[18px] px-4 text-xs font-bold text-neutral-700 hover:bg-white"
               onClick={() => insertAggregateFormula(formula)}
             >
               {formula}
@@ -247,7 +245,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
           ))}
           <button
             type="button"
-            className="h-8 rounded-md px-3 text-xs font-semibold text-neutral-700 hover:bg-white"
+            className="h-9 rounded-[18px] px-4 text-xs font-bold text-neutral-700 hover:bg-white"
             onClick={() => {
               setCellInput(selection.end, '=IF(A1="","",A1)');
               onNotify("Inserted editable IF formula");
@@ -261,14 +259,14 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         <div className="flex shrink-0 items-center gap-1 border-r border-neutral-300 pr-2">
           <button
             type="button"
-            className="flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-neutral-700 hover:bg-white"
+            className="flex h-9 items-center gap-1.5 rounded-[18px] px-4 text-xs font-bold text-neutral-700 hover:bg-white"
             onClick={() => fileInputRef.current?.click()}
           >
             Import
           </button>
           <button
             type="button"
-            className="flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold text-neutral-700 hover:bg-white"
+            className="flex h-9 items-center gap-1.5 rounded-[18px] px-4 text-xs font-bold text-neutral-700 hover:bg-white"
             onClick={() => {
               clearSelection();
               onNotify("Cleared selected cells");
@@ -282,7 +280,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
       <div className="flex shrink-0 items-center gap-1">
         <button
           type="button"
-          className="grid h-8 w-8 place-items-center rounded-md text-neutral-700 transition hover:bg-white"
+          className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white"
           onClick={onOpenFind}
           aria-label="Find and replace"
         >
@@ -290,7 +288,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         </button>
         <button
           type="button"
-          className="grid h-8 w-8 place-items-center rounded-md text-neutral-700 transition hover:bg-white"
+          className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white"
           onClick={() => toggleCommandPalette(true)}
           aria-label="Open command palette"
         >
@@ -298,7 +296,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         </button>
         <button
           type="button"
-          className="grid h-8 w-8 place-items-center rounded-md text-neutral-700 transition hover:bg-white"
+          className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white"
           onClick={() => {
             insertAggregateFormula("SUM");
           }}
@@ -309,14 +307,14 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         <div className="relative">
           <button
             type="button"
-            className="grid h-8 w-8 place-items-center rounded-md text-neutral-700 transition hover:bg-white"
+            className="grid h-9 w-9 place-items-center rounded-[18px] text-neutral-700 transition hover:bg-white"
             onClick={() => setExportMenuOpen((open) => !open)}
             aria-label="Export workbook"
           >
             <Download className="h-4 w-4" />
           </button>
           {exportMenuOpen ? (
-            <div className="absolute right-0 top-9 z-50 w-56 overflow-hidden rounded-2xl border border-neutral-200 bg-white py-1 text-sm">
+            <div className="absolute right-0 top-10 z-50 w-56 overflow-hidden rounded-[20px] border border-neutral-200 bg-white py-1 text-sm">
               {[
                 ["xlsx", "Excel workbook (.xlsx)"],
                 ["google-sheets", "Google Sheets-ready (.xlsx)"],
@@ -343,26 +341,32 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         accept=".xlsx,.xlsm,.csv,.tsv,.json"
         className="hidden"
         onChange={(event) => {
+          const input = event.currentTarget;
           const file = event.target.files?.[0];
           if (!file) {
             return;
           }
           void importWorkbookFile(file)
             .then((workbook) => {
-              importRows(workbook.rows, workbook.name);
+              importRows(workbook.rows, workbook.name, {
+                cells: workbook.cells,
+                rowHeights: workbook.rowHeights,
+                columnWidths: workbook.columnWidths,
+                mergedCells: workbook.mergedCells
+              });
               onNotify(`Imported ${file.name}`);
             })
             .catch((error: unknown) => {
               onNotify(error instanceof Error ? error.message : "Import failed");
             })
             .finally(() => {
-              event.currentTarget.value = "";
+              input.value = "";
             });
         }}
       />
       <button
         type="button"
-        className="ml-auto flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[#217346]/30 bg-white px-3 text-xs font-semibold text-[#217346] transition hover:bg-[#ecf6ef]"
+        className="ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-[18px] border border-[#2F7D4D]/30 bg-white px-4 text-xs font-bold text-[#2F7D4D] transition hover:bg-[#ecf6ef]"
         onClick={shareWorkbook}
         aria-label="Share workbook"
       >

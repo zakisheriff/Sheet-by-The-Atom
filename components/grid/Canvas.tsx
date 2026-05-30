@@ -34,7 +34,7 @@ const fillHandleSize = 7;
 const fillHandleHitSize = 16;
 const resizeHitSize = 5;
 const fillHandleCursor =
-  'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2724%27 height=%2724%27 viewBox=%270 0 24 24%27%3E%3Cpath d=%27M12 2v20M2 12h20%27 stroke=%27%23000%27 stroke-width=%273%27 stroke-linecap=%27square%27/%3E%3Cpath d=%27M12 5v14M5 12h14%27 stroke=%27%23fff%27 stroke-width=%271%27 stroke-linecap=%27square%27/%3E%3C/svg%3E") 12 12, crosshair';
+  'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2720%27 height=%2720%27 viewBox=%270 0 20 20%27%3E%3Cpath d=%27M10 3v14M3 10h14%27 stroke=%27%23000%27 stroke-width=%272.4%27 stroke-linecap=%27square%27/%3E%3C/svg%3E") 10 10, crosshair';
 
 type ResizeHit = { kind: "column" | "row"; index: number };
 type ResizeDrag = ResizeHit & {
@@ -57,6 +57,41 @@ function getCellRect(sheet: Sheet, address: CellAddress, viewport: Viewport) {
     isFrozenCol,
     isFrozenRow
   };
+}
+
+function mergeRangeForCell(sheet: Sheet, address: CellAddress): CellRange | null {
+  for (const range of sheet.mergedCells) {
+    const normalized = normalizeRange(range);
+    if (
+      address.row >= normalized.start.row &&
+      address.row <= normalized.end.row &&
+      address.col >= normalized.start.col &&
+      address.col <= normalized.end.col
+    ) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
+function isMergeChild(sheet: Sheet, address: CellAddress) {
+  const mergeRange = mergeRangeForCell(sheet, address);
+  return Boolean(
+    mergeRange && (address.row !== mergeRange.start.row || address.col !== mergeRange.start.col)
+  );
+}
+
+function getRangeRect(sheet: Sheet, range: CellRange, viewport: Viewport) {
+  const normalized = normalizeRange(range);
+  const startRect = getCellRect(sheet, normalized.start, viewport);
+  const endRect = getCellRect(sheet, normalized.end, viewport);
+  const x = Math.min(startRect.x, endRect.x);
+  const y = Math.min(startRect.y, endRect.y);
+  const width = Math.abs(endRect.x - startRect.x) + endRect.width;
+  const height = Math.abs(endRect.y - startRect.y) + endRect.height;
+
+  return { x, y, width, height };
 }
 
 function drawCellText(
@@ -96,6 +131,57 @@ function drawCellText(
   ctx.restore();
 }
 
+function drawCellBorders(
+  ctx: CanvasRenderingContext2D,
+  borders: Sheet["cells"][string]["style"]["borders"],
+  x: number,
+  y: number,
+  width: number,
+  height: number
+) {
+  if (!borders) {
+    return;
+  }
+
+  ctx.save();
+  ctx.lineCap = "square";
+
+  if (borders.top) {
+    ctx.strokeStyle = borders.top.color;
+    ctx.lineWidth = borders.top.width;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + width, y);
+    ctx.stroke();
+  }
+  if (borders.right) {
+    ctx.strokeStyle = borders.right.color;
+    ctx.lineWidth = borders.right.width;
+    ctx.beginPath();
+    ctx.moveTo(x + width, y);
+    ctx.lineTo(x + width, y + height);
+    ctx.stroke();
+  }
+  if (borders.bottom) {
+    ctx.strokeStyle = borders.bottom.color;
+    ctx.lineWidth = borders.bottom.width;
+    ctx.beginPath();
+    ctx.moveTo(x, y + height);
+    ctx.lineTo(x + width, y + height);
+    ctx.stroke();
+  }
+  if (borders.left) {
+    ctx.strokeStyle = borders.left.color;
+    ctx.lineWidth = borders.left.width;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y + height);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function drawCell(
   ctx: CanvasRenderingContext2D,
   sheet: Sheet,
@@ -127,6 +213,7 @@ function drawCell(
   ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, width, height);
   drawCellText(ctx, sheet, address, x, y, width, height);
+  drawCellBorders(ctx, cell?.style.borders, x + 0.5, y + 0.5, width, height);
 }
 
 function drawHeaders(
@@ -175,6 +262,19 @@ function drawHeaders(
 
 function getSelectionBounds(sheet: Sheet, selection: CellRange, viewport: Viewport) {
   const range = normalizeRange(selection);
+  const startMerge = mergeRangeForCell(sheet, range.start);
+  const endMerge = mergeRangeForCell(sheet, range.end);
+  if (
+    startMerge &&
+    endMerge &&
+    startMerge.start.row === endMerge.start.row &&
+    startMerge.start.col === endMerge.start.col &&
+    startMerge.end.row === endMerge.end.row &&
+    startMerge.end.col === endMerge.end.col
+  ) {
+    return getRangeRect(sheet, startMerge, viewport);
+  }
+
   const startRect = getCellRect(sheet, range.start, viewport);
   const endRect = getCellRect(sheet, range.end, viewport);
   const x = Math.min(startRect.x, endRect.x);
@@ -193,6 +293,40 @@ function isPointOnFillHandle(x: number, y: number, sheet: Sheet, selection: Cell
   return (
     Math.abs(x - handleCenterX) <= fillHandleHitSize / 2 &&
     Math.abs(y - handleCenterY) <= fillHandleHitSize / 2
+  );
+}
+
+function frozenColumnsWidth(sheet: Sheet) {
+  let width = 0;
+  for (let col = 0; col < GRID.frozenColumns; col += 1) {
+    width += columnWidth(sheet, col);
+  }
+  return width;
+}
+
+function frozenRowsHeight(sheet: Sheet) {
+  let height = 0;
+  for (let row = 0; row < GRID.frozenRows; row += 1) {
+    height += rowHeight(sheet, row);
+  }
+  return height;
+}
+
+function columnBoundaryX(sheet: Sheet, col: number, viewport: Viewport) {
+  return (
+    GRID.rowHeaderWidth +
+    columnOffset(sheet, col) +
+    columnWidth(sheet, col) -
+    (col < GRID.frozenColumns ? 0 : viewport.scrollLeft)
+  );
+}
+
+function rowBoundaryY(sheet: Sheet, row: number, viewport: Viewport) {
+  return (
+    GRID.columnHeaderHeight +
+    rowOffset(sheet, row) +
+    rowHeight(sheet, row) -
+    (row < GRID.frozenRows ? 0 : viewport.scrollTop)
   );
 }
 
@@ -249,21 +383,64 @@ function drawSelection(
 
 function findResizeHit(sheet: Sheet, x: number, y: number, viewport: Viewport): ResizeHit | null {
   if (y >= 0 && y <= GRID.columnHeaderHeight && x > GRID.rowHeaderWidth) {
-    const offset = x - GRID.rowHeaderWidth + (x <= GRID.rowHeaderWidth + GRID.frozenColumns * GRID.columnWidth ? 0 : viewport.scrollLeft);
+    const offset = x - GRID.rowHeaderWidth + (x <= GRID.rowHeaderWidth + frozenColumnsWidth(sheet) ? 0 : viewport.scrollLeft);
     const col = columnAtOffset(sheet, offset);
-    const boundary = GRID.rowHeaderWidth + columnOffset(sheet, col) + columnWidth(sheet, col) - (col < GRID.frozenColumns ? 0 : viewport.scrollLeft);
-    if (Math.abs(x - boundary) <= resizeHitSize) {
-      return { kind: "column", index: col };
+    const candidates = [col - 1, col];
+
+    for (const candidate of candidates) {
+      if (candidate < 0 || candidate >= GRID.columnCount) {
+        continue;
+      }
+
+      if (Math.abs(x - columnBoundaryX(sheet, candidate, viewport)) <= resizeHitSize) {
+        return { kind: "column", index: candidate };
+      }
     }
   }
 
   if (x >= 0 && x <= GRID.rowHeaderWidth && y > GRID.columnHeaderHeight) {
-    const offset = y - GRID.columnHeaderHeight + (y <= GRID.columnHeaderHeight + GRID.frozenRows * GRID.rowHeight ? 0 : viewport.scrollTop);
+    const offset = y - GRID.columnHeaderHeight + (y <= GRID.columnHeaderHeight + frozenRowsHeight(sheet) ? 0 : viewport.scrollTop);
     const row = rowAtOffset(sheet, offset);
-    const boundary = GRID.columnHeaderHeight + rowOffset(sheet, row) + rowHeight(sheet, row) - (row < GRID.frozenRows ? 0 : viewport.scrollTop);
-    if (Math.abs(y - boundary) <= resizeHitSize) {
-      return { kind: "row", index: row };
+    const candidates = [row - 1, row];
+
+    for (const candidate of candidates) {
+      if (candidate < 0 || candidate >= GRID.rowCount) {
+        continue;
+      }
+
+      if (Math.abs(y - rowBoundaryY(sheet, candidate, viewport)) <= resizeHitSize) {
+        return { kind: "row", index: candidate };
+      }
     }
+  }
+
+  return null;
+}
+
+function findSelectionResizeHit(
+  sheet: Sheet,
+  x: number,
+  y: number,
+  selection: CellRange,
+  viewport: Viewport
+): ResizeHit | null {
+  const range = normalizeRange(selection);
+  const bounds = getSelectionBounds(sheet, range, viewport);
+  const right = bounds.x + bounds.width;
+  const bottom = bounds.y + bounds.height;
+  const withinSelectionY = y >= Math.max(bounds.y, GRID.columnHeaderHeight) && y <= Math.min(bottom, viewport.height);
+  const withinSelectionX = x >= Math.max(bounds.x, GRID.rowHeaderWidth) && x <= Math.min(right, viewport.width);
+
+  if (isPointOnFillHandle(x, y, sheet, selection, viewport)) {
+    return null;
+  }
+
+  if (withinSelectionY && Math.abs(x - right) <= resizeHitSize) {
+    return { kind: "column", index: range.end.col };
+  }
+
+  if (withinSelectionX && Math.abs(y - bottom) <= resizeHitSize) {
+    return { kind: "row", index: range.end.row };
   }
 
   return null;
@@ -414,7 +591,13 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
 
       for (const row of visibleRows) {
         for (const col of visibleColumns) {
-          const rect = getCellRect(sheet, { row, col }, viewport);
+          const address = { row, col };
+          if (isMergeChild(sheet, address)) {
+            continue;
+          }
+
+          const mergeRange = mergeRangeForCell(sheet, address);
+          const rect = mergeRange ? getRangeRect(sheet, mergeRange, viewport) : getCellRect(sheet, address, viewport);
           if (
             rect.x + rect.width < GRID.rowHeaderWidth ||
             rect.y + rect.height < GRID.columnHeaderHeight ||
@@ -423,7 +606,7 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
           ) {
             continue;
           }
-          drawCell(ctx, sheet, { row, col }, rect.x, rect.y, rect.width, rect.height, selection, precedents);
+          drawCell(ctx, sheet, address, rect.x, rect.y, rect.width, rect.height, selection, precedents);
         }
       }
 
@@ -445,7 +628,8 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
         return { row: 0, col: 0 };
       }
       const rect = canvas.getBoundingClientRect();
-      return pointToCell(sheet, event.clientX - rect.left, event.clientY - rect.top, viewport);
+      const address = pointToCell(sheet, event.clientX - rect.left, event.clientY - rect.top, viewport);
+      return mergeRangeForCell(sheet, address)?.start ?? address;
     },
     [sheet, viewport]
   );
@@ -536,7 +720,9 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
           setContextMenu(null);
           event.currentTarget.setPointerCapture(event.pointerId);
           const point = canvasPointFromPointer(event);
-          const resizeHit = findResizeHit(sheet, point.x, point.y, viewport);
+          const headerResizeHit = findResizeHit(sheet, point.x, point.y, viewport);
+          const resizeHit =
+            headerResizeHit ?? findSelectionResizeHit(sheet, point.x, point.y, selection, viewport);
           if (resizeHit) {
             event.preventDefault();
             const startSize =
@@ -608,9 +794,11 @@ export function CanvasGrid({ onViewportChange }: CanvasGridProps) {
           }
           if (event.buttons !== 1) {
             const point = canvasPointFromPointer(event);
-            const resizeHit = findResizeHit(sheet, point.x, point.y, viewport);
+            const headerResizeHit = findResizeHit(sheet, point.x, point.y, viewport);
+            const onFillHandle = isPointOnFillHandle(point.x, point.y, sheet, selection, viewport);
+            const resizeHit = headerResizeHit ?? (onFillHandle ? null : findSelectionResizeHit(sheet, point.x, point.y, selection, viewport));
             setResizeHover(resizeHit?.kind ?? null);
-            setFillHandleHover(!resizeHit && isPointOnFillHandle(point.x, point.y, sheet, selection, viewport));
+            setFillHandleHover(!resizeHit && onFillHandle);
             return;
           }
           if (!pointerStart.current || event.buttons !== 1) {

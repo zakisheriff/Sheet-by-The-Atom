@@ -1,14 +1,290 @@
 "use client";
 
-import type { Sheet } from "./grid";
-import { cellKey } from "./grid";
+import type { Border, Cell, CellFormulaValue, CellHyperlinkValue, CellRichTextValue, CellSharedFormulaValue, CellValue, Color, Fill } from "exceljs";
+import type { CellData, CellFormat, CellRange, CellStyle, Sheet } from "./grid";
+import { cellKey, createEmptyCell, formatNumber, inferCellData, parseAddress } from "./grid";
 
 export type WorkbookExportFormat = "xlsx" | "csv" | "tsv" | "json" | "google-sheets";
 
 export type ImportedWorkbook = {
   name: string;
   rows: string[][];
+  cells?: Sheet["cells"];
+  rowHeights?: Sheet["rowHeights"];
+  columnWidths?: Sheet["columnWidths"];
+  mergedCells?: Sheet["mergedCells"];
 };
+
+const EXCEL_POINT_TO_PIXEL = 4 / 3;
+const EXCEL_COLUMN_CHAR_TO_PIXEL = 8;
+
+function hasKey<K extends string>(value: unknown, key: K): value is Record<K, unknown> {
+  return typeof value === "object" && value !== null && key in value;
+}
+
+function colorToHex(color?: Partial<Color>): string | undefined {
+  if (!color?.argb) {
+    return undefined;
+  }
+
+  const hex = color.argb.length === 8 ? color.argb.slice(2) : color.argb;
+  return /^[\dA-F]{6}$/i.test(hex) ? `#${hex.toUpperCase()}` : undefined;
+}
+
+function fillToHex(fill?: Fill): string | undefined {
+  if (!fill || fill.type !== "pattern") {
+    return undefined;
+  }
+
+  return colorToHex(fill.fgColor) ?? colorToHex(fill.bgColor);
+}
+
+function borderWidth(border?: Partial<Border>): number | undefined {
+  if (!border?.style) {
+    return undefined;
+  }
+
+  if (border.style === "medium" || border.style === "mediumDashed" || border.style === "mediumDashDot" || border.style === "mediumDashDotDot") {
+    return 2;
+  }
+
+  if (border.style === "thick" || border.style === "double") {
+    return 3;
+  }
+
+  return 1;
+}
+
+function borderStyle(border?: Partial<Border>): { color: string; width: number } | undefined {
+  const width = borderWidth(border);
+  if (!width) {
+    return undefined;
+  }
+
+  return { color: colorToHex(border?.color) ?? "#171717", width };
+}
+
+function excelCellStyle(cell: Cell): CellStyle {
+  const borders = {
+    top: borderStyle(cell.border?.top),
+    right: borderStyle(cell.border?.right),
+    bottom: borderStyle(cell.border?.bottom),
+    left: borderStyle(cell.border?.left)
+  };
+  const hasBorders = Object.values(borders).some(Boolean);
+
+  return {
+    bold: cell.font?.bold || undefined,
+    italic: cell.font?.italic || undefined,
+    underline: Boolean(cell.font?.underline && cell.font.underline !== "none") || undefined,
+    textColor: colorToHex(cell.font?.color),
+    fillColor: fillToHex(cell.fill),
+    align:
+      cell.alignment?.horizontal === "center" || cell.alignment?.horizontal === "centerContinuous"
+        ? "center"
+        : cell.alignment?.horizontal === "right"
+          ? "right"
+          : cell.alignment?.horizontal === "left"
+            ? "left"
+            : undefined,
+    verticalAlign:
+      cell.alignment?.vertical === "top"
+        ? "top"
+        : cell.alignment?.vertical === "bottom"
+          ? "bottom"
+          : cell.alignment?.vertical === "middle"
+            ? "middle"
+            : undefined,
+    fontFamily: cell.font?.name,
+    fontSize: cell.font?.size,
+    borders: hasBorders ? borders : undefined
+  };
+}
+
+function hasCellStyle(style: CellStyle): boolean {
+  return Boolean(
+    style.bold ||
+      style.italic ||
+      style.underline ||
+      style.textColor ||
+      style.fillColor ||
+      style.align ||
+      style.verticalAlign ||
+      style.fontFamily ||
+      style.fontSize ||
+      style.borders
+  );
+}
+
+function formulaFromValue(value: CellValue): string | undefined {
+  if (hasKey(value, "formula") && typeof value.formula === "string") {
+    return value.formula;
+  }
+
+  if (hasKey(value, "sharedFormula")) {
+    const shared = value as CellSharedFormulaValue;
+    return shared.formula ?? (typeof shared.sharedFormula === "string" ? shared.sharedFormula : undefined);
+  }
+
+  return undefined;
+}
+
+function primitiveFromValue(value: CellValue): string | number | boolean | Date | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value instanceof Date) {
+    return value;
+  }
+
+  if (hasKey(value, "result")) {
+    const result = (value as CellFormulaValue | CellSharedFormulaValue).result;
+    return primitiveFromValue(result);
+  }
+
+  if (hasKey(value, "richText") && Array.isArray(value.richText)) {
+    return (value as CellRichTextValue).richText.map((part) => part.text).join("");
+  }
+
+  if (hasKey(value, "text") && typeof value.text === "string") {
+    return (value as CellHyperlinkValue).text;
+  }
+
+  if (hasKey(value, "error") && typeof value.error === "string") {
+    return value.error;
+  }
+
+  return "";
+}
+
+function currencySymbolFromNumberFormat(numberFormat: string): string | undefined {
+  const quotedSymbol = /"([^"]+)"/.exec(numberFormat)?.[1];
+  if (quotedSymbol) {
+    return quotedSymbol;
+  }
+
+  if (numberFormat.includes("$")) {
+    return "$";
+  }
+  if (numberFormat.toLowerCase().includes("lkr")) {
+    return "LKR";
+  }
+  if (numberFormat.toLowerCase().includes("rs")) {
+    return "Rs";
+  }
+
+  return undefined;
+}
+
+function formatDateForExcel(date: Date, numberFormat: string): string {
+  const day = new Intl.DateTimeFormat("en-US", { day: "2-digit" }).format(date);
+  const monthShort = new Intl.DateTimeFormat("en-US", { month: "short" }).format(date);
+  const yearTwo = new Intl.DateTimeFormat("en-US", { year: "2-digit" }).format(date);
+  const yearFull = new Intl.DateTimeFormat("en-US", { year: "numeric" }).format(date);
+  const normalized = numberFormat.toLowerCase();
+
+  if (normalized.includes("mmm-yy")) {
+    return `${monthShort}-${yearTwo}`;
+  }
+  if (normalized.includes("d-mmm")) {
+    return `${Number(day)}-${monthShort}`;
+  }
+  if (normalized.includes("yyyy")) {
+    return `${day}-${monthShort}-${yearFull}`;
+  }
+
+  return date.toLocaleDateString("en-US");
+}
+
+function displayValueForCell(cell: Cell, primitive: string | number | boolean | Date | null): string {
+  const numberFormat = cell.numFmt ?? "";
+  const normalized = numberFormat.toLowerCase();
+
+  if (primitive instanceof Date) {
+    return formatDateForExcel(primitive, numberFormat);
+  }
+
+  if (typeof primitive === "number") {
+    const currencySymbol = currencySymbolFromNumberFormat(numberFormat);
+    if (currencySymbol) {
+      return formatNumber(primitive, "currency", currencySymbol);
+    }
+    if (normalized.includes("%")) {
+      return formatNumber(primitive, "percent");
+    }
+    if (normalized.includes(".00")) {
+      return formatNumber(primitive, "decimal");
+    }
+  }
+
+  return cell.text || String(primitive ?? "");
+}
+
+function formatForCell(cell: Cell, primitive: string | number | boolean | Date | null): CellFormat {
+  const rawNumberFormat = cell.numFmt ?? "";
+  const numberFormat = rawNumberFormat.toLowerCase();
+  const currencySymbol = currencySymbolFromNumberFormat(rawNumberFormat);
+
+  if (cell.formula) {
+    return { kind: "formula", numberFormat: currencySymbol ? "currency" : numberFormat.includes("%") ? "percent" : "plain", currencySymbol };
+  }
+
+  if (primitive instanceof Date || /[dmy]/i.test(numberFormat)) {
+    return { kind: "date", numberFormat: "plain" };
+  }
+
+  if (typeof primitive === "boolean") {
+    return { kind: "boolean", numberFormat: "plain" };
+  }
+
+  if (typeof primitive === "number") {
+    if (numberFormat.includes("%")) {
+      return { kind: "number", numberFormat: "percent" };
+    }
+    if (currencySymbol) {
+      return { kind: "currency", numberFormat: "currency", currencySymbol };
+    }
+    return { kind: "number", numberFormat: numberFormat.includes(".") ? "decimal" : "plain" };
+  }
+
+  return { kind: "text", numberFormat: "plain" };
+}
+
+function excelCellData(cell: Cell): CellData {
+  const formula = formulaFromValue(cell.value);
+  const primitive = primitiveFromValue(cell.value);
+  const displayValue = displayValueForCell(cell, primitive);
+  const baseCell = formula ? inferCellData(`=${formula}`) : createEmptyCell();
+
+  return {
+    ...baseCell,
+    value: formula ? baseCell.value : primitive,
+    displayValue: formula ? baseCell.displayValue : displayValue,
+    formula: formula ? `=${formula}` : undefined,
+    format: formatForCell(cell, primitive),
+    style: excelCellStyle(cell)
+  };
+}
+
+function parseMergeRange(range: string): CellRange | null {
+  const [startLabel, endLabel] = range.split(":");
+  const start = parseAddress(startLabel);
+  const end = parseAddress(endLabel ?? startLabel);
+
+  return start && end ? { start, end } : null;
+}
+
+function isMergeChild(row: number, col: number, ranges: CellRange[]): boolean {
+  return ranges.some(
+    (range) =>
+      row >= range.start.row &&
+      row <= range.end.row &&
+      col >= range.start.col &&
+      col <= range.end.col &&
+      (row !== range.start.row || col !== range.start.col)
+  );
+}
 
 function parseDelimited(text: string, delimiter: "," | "\t"): string[][] {
   const rows: string[][] = [];
@@ -121,27 +397,50 @@ export async function importWorkbookFile(file: File): Promise<ImportedWorkbook> 
     await workbook.xlsx.load(await file.arrayBuffer());
     const worksheet = workbook.worksheets[0];
     const rows: string[][] = [];
+    const cells: Sheet["cells"] = {};
+    const rowHeights: Sheet["rowHeights"] = {};
+    const columnWidths: Sheet["columnWidths"] = {};
+    const mergedCells = worksheet.model.merges.map(parseMergeRange).filter((range): range is CellRange => range !== null);
 
-    worksheet.eachRow({ includeEmpty: true }, (excelRow, rowNumber) => {
+    for (let rowNumber = 1; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+      const excelRow = worksheet.getRow(rowNumber);
       const values: string[] = [];
+
+      if (excelRow.height) {
+        rowHeights[rowNumber - 1] = Math.round(excelRow.height * EXCEL_POINT_TO_PIXEL);
+      }
+
       for (let col = 1; col <= worksheet.columnCount; col += 1) {
-        const value = excelRow.getCell(col).value;
-        if (value === null || value === undefined) {
+        const cell = excelRow.getCell(col);
+        if (isMergeChild(rowNumber - 1, col - 1, mergedCells)) {
           values.push("");
-        } else if (typeof value === "object" && "formula" in value) {
-          values.push(`=${String(value.formula)}`);
-        } else if (typeof value === "object" && "text" in value) {
-          values.push(String(value.text));
-        } else {
-          values.push(String(value));
+          continue;
+        }
+
+        const importedCell = excelCellData(cell);
+        const inputValue = importedCell.formula ?? importedCell.displayValue;
+        values.push(inputValue);
+
+        if (inputValue.trim().length > 0 || hasCellStyle(importedCell.style)) {
+          cells[cellKey({ row: rowNumber - 1, col: col - 1 })] = importedCell;
         }
       }
       rows[rowNumber - 1] = values;
+    }
+
+    worksheet.columns.forEach((column, index) => {
+      if (column.width) {
+        columnWidths[index] = Math.round(column.width * EXCEL_COLUMN_CHAR_TO_PIXEL + 12);
+      }
     });
 
     return {
       name: worksheet.name || file.name.replace(/\.[^.]+$/, ""),
-      rows
+      rows,
+      cells,
+      rowHeights,
+      columnWidths,
+      mergedCells
     };
   }
 

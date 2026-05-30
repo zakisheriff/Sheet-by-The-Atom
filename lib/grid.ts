@@ -22,6 +22,7 @@ export type CellKind = "text" | "number" | "formula" | "date" | "boolean" | "cur
 export type CellFormat = {
   kind: CellKind;
   numberFormat?: "plain" | "currency" | "percent" | "decimal";
+  currencySymbol?: string;
 };
 
 export type CellStyle = {
@@ -31,8 +32,10 @@ export type CellStyle = {
   textColor?: string;
   fillColor?: string;
   align?: "left" | "center" | "right";
+  verticalAlign?: "top" | "middle" | "bottom";
   fontFamily?: string;
   fontSize?: number;
+  borders?: Partial<Record<"top" | "right" | "bottom" | "left", { color: string; width: number }>>;
 };
 
 export type CellAddress = {
@@ -60,6 +63,7 @@ export type Sheet = {
   cells: Record<string, CellData>;
   rowHeights: Record<number, number>;
   columnWidths: Record<number, number>;
+  mergedCells: CellRange[];
 };
 
 export type SelectionStats = {
@@ -277,7 +281,11 @@ export function inferCellData(input: string): CellData {
     return {
       value: numberFormat === "percent" ? numericValue / 100 : numericValue,
       displayValue: formatNumber(numberFormat === "percent" ? numericValue / 100 : numericValue, numberFormat),
-      format: { kind: numberFormat === "currency" ? "currency" : "number", numberFormat },
+      format: {
+        kind: numberFormat === "currency" ? "currency" : "number",
+        numberFormat,
+        currencySymbol: numberFormat === "currency" ? "$" : undefined
+      },
       style: {}
     };
   }
@@ -290,9 +298,16 @@ export function inferCellData(input: string): CellData {
   };
 }
 
-export function formatNumber(value: number, format: CellFormat["numberFormat"] = "plain"): string {
+export function formatNumber(
+  value: number,
+  format: CellFormat["numberFormat"] = "plain",
+  currencySymbol = "$"
+): string {
   if (format === "currency") {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+    return `${currencySymbol}${new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value)}`;
   }
 
   if (format === "percent") {

@@ -69,7 +69,7 @@ export function evaluateCell(address: CellAddress, cell: CellData): CellData {
       return {
         ...cell,
         value,
-        displayValue: formatNumber(value, cell.format.numberFormat),
+        displayValue: formatNumber(value, cell.format.numberFormat, cell.format.currencySymbol),
         error: undefined
       };
     }

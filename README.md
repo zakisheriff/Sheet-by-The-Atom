@@ -1,4 +1,4 @@
-# <div align="center">Sheet by The Atom</div>
+# <div align="center">Sheets by The Atom</div>
 
 <div align="center">
 <strong>Next-generation spreadsheet web application with a custom canvas grid, real formulas, collaboration, and Excel-ready import/export</strong>
@@ -414,7 +414,7 @@ If Sheet by The Atom helped your workflow or inspired your next project:
 - It keeps development alive and supports future updates
 
 <div align="center">
-<a href="https://buymeacoffee.com/zakisheriffw">
+<a href="https://buymeacoffee.com/theoneatom">
 <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="60" width="217">
 </a>
 </div>

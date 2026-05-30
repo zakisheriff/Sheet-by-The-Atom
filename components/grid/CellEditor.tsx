@@ -30,14 +30,30 @@ export function CellEditor({ viewport }: CellEditorProps) {
   const sheet = useSpreadsheetStore((state) => state.getActiveSheet());
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [highlightedSuggestion, setHighlightedSuggestion] = useState(0);
+  const editorSession = editMode
+    ? `${editMode.address.row}:${editMode.address.col}:${editMode.startedWithTyping ? "typing" : "select"}`
+    : null;
+  const startedWithTyping = editMode?.startedWithTyping ?? false;
 
   useEffect(() => {
-    if (!editMode) {
+    if (!editorSession) {
       return;
     }
     setHighlightedSuggestion(0);
-    requestAnimationFrame(() => inputRef.current?.select());
-  }, [editMode]);
+    requestAnimationFrame(() => {
+      const input = inputRef.current;
+      if (!input) {
+        return;
+      }
+
+      input.focus();
+      if (startedWithTyping) {
+        input.setSelectionRange(input.value.length, input.value.length);
+      } else {
+        input.select();
+      }
+    });
+  }, [editorSession, startedWithTyping]);
 
   const position = useMemo(() => {
     if (!editMode) {

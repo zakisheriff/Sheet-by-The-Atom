@@ -2,22 +2,169 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Clock3, FileSpreadsheet, FolderOpen, Grid2X2, Home, Plus, Users } from "lucide-react";
+import {
+  BarChart3,
+  Calculator,
+  Clock3,
+  FileSpreadsheet,
+  FolderOpen,
+  Grid2X2,
+  Heart,
+  Home,
+  LayoutTemplate,
+  Plus,
+  ReceiptText,
+  Rows3
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { importWorkbookFile } from "@/lib/workbook-io";
+
+type DashboardView = "templates" | "recents" | "favourites";
+
+type Template = {
+  id: string;
+  name: string;
+  description: string;
+  accent: "green" | "blue" | "amber" | "purple";
+  icon: typeof FileSpreadsheet;
+  rows: string[][];
+};
+
+const templates: Template[] = [
+  {
+    id: "blank-workbook",
+    name: "Blank Workbook",
+    description: "Start from a clean sheet.",
+    accent: "green",
+    icon: Grid2X2,
+    rows: [[""]]
+  },
+  {
+    id: "budget",
+    name: "Budget",
+    description: "Track income, expenses, and balance.",
+    accent: "blue",
+    icon: Calculator,
+    rows: [
+      ["Category", "Planned", "Actual", "Difference"],
+      ["Income", "5000", "5200", "=C2-B2"],
+      ["Rent", "1600", "1600", "=C3-B3"],
+      ["Groceries", "600", "745", "=C4-B4"],
+      ["Utilities", "280", "310", "=C5-B5"],
+      ["Savings", "1000", "900", "=C6-B6"],
+      ["Total", "=SUM(B2:B6)", "=SUM(C2:C6)", "=SUM(D2:D6)"]
+    ]
+  },
+  {
+    id: "task-list",
+    name: "Task List",
+    description: "Plan owners, dates, and status.",
+    accent: "green",
+    icon: Rows3,
+    rows: [
+      ["Task", "Owner", "Priority", "Due", "Status"],
+      ["Research competitors", "You", "High", "2026-06-03", "In progress"],
+      ["Draft launch plan", "Team", "High", "2026-06-07", "Not started"],
+      ["Review pricing", "Finance", "Medium", "2026-06-10", "Not started"],
+      ["Publish update", "Marketing", "Medium", "2026-06-14", "Blocked"]
+    ]
+  },
+  {
+    id: "sales-report",
+    name: "Sales Report",
+    description: "Quarterly sales by region.",
+    accent: "blue",
+    icon: BarChart3,
+    rows: [
+      ["Region", "Q1", "Q2", "Q3", "Q4", "Total"],
+      ["North", "42000", "51000", "48000", "57000", "=SUM(B2:E2)"],
+      ["South", "38000", "44000", "46000", "52000", "=SUM(B3:E3)"],
+      ["West", "61000", "66000", "70000", "74000", "=SUM(B4:E4)"],
+      ["East", "47000", "49000", "53000", "59000", "=SUM(B5:E5)"],
+      ["Total", "=SUM(B2:B5)", "=SUM(C2:C5)", "=SUM(D2:D5)", "=SUM(E2:E5)", "=SUM(F2:F5)"]
+    ]
+  },
+  {
+    id: "project-plan",
+    name: "Project Plan",
+    description: "Milestones, timing, and progress.",
+    accent: "purple",
+    icon: LayoutTemplate,
+    rows: [
+      ["Milestone", "Owner", "Start", "End", "Progress"],
+      ["Discovery", "Product", "2026-06-01", "2026-06-07", "100%"],
+      ["Design", "Design", "2026-06-08", "2026-06-21", "65%"],
+      ["Engineering", "Engineering", "2026-06-22", "2026-07-19", "20%"],
+      ["Launch", "Go-to-market", "2026-07-20", "2026-07-31", "0%"]
+    ]
+  },
+  {
+    id: "invoice",
+    name: "Invoice",
+    description: "Line items, quantity, tax, and total.",
+    accent: "amber",
+    icon: ReceiptText,
+    rows: [
+      ["Invoice", "", "", "", ""],
+      ["Client", "Acme Studio", "", "Invoice #", "ATOM-001"],
+      ["Item", "Qty", "Rate", "Tax", "Line Total"],
+      ["Design system", "1", "2500", "0.08", "=B4*C4*(1+D4)"],
+      ["Spreadsheet build", "1", "4200", "0.08", "=B5*C5*(1+D5)"],
+      ["Support", "10", "120", "0.08", "=B6*C6*(1+D6)"],
+      ["Total", "", "", "", "=SUM(E4:E6)"]
+    ]
+  }
+];
 
 const workbooks = [
   {
     id: "demo-workbook",
     name: "Financial Model",
     updatedAt: "Just now",
-    owner: "You"
+    owner: "You",
+    favourite: true
   }
 ];
 
+const navItems: Array<{
+  id: DashboardView | "new" | "open";
+  label: string;
+  icon: typeof Home;
+}> = [
+  { id: "templates", label: "Templates", icon: Home },
+  { id: "new", label: "Blank Workbook", icon: Plus },
+  { id: "recents", label: "Recents", icon: Clock3 },
+  { id: "favourites", label: "Favourites", icon: Heart },
+  { id: "open", label: "Open File", icon: FolderOpen }
+];
+
+function TemplatePreview({ template }: { template: Template }) {
+  const headerColor =
+    template.accent === "blue"
+      ? "bg-[#5DADE2]"
+      : template.accent === "amber"
+        ? "bg-[#F5B041]"
+        : template.accent === "purple"
+          ? "bg-[#8E7BEF]"
+          : "bg-[#2F7D4D]";
+
+  return (
+    <div className="rounded-[20px] border border-neutral-200 bg-white p-4 transition group-hover:-translate-y-0.5 group-hover:border-[#2F7D4D]/40 group-hover:bg-[#fbfdfb]">
+      <div className="grid h-28 grid-cols-5 grid-rows-5 overflow-hidden rounded-[16px] border border-neutral-200 bg-white">
+        {Array.from({ length: 25 }, (_, cellIndex) => (
+          <span
+            key={cellIndex}
+            className={cellIndex < 5 ? `border border-white/60 ${headerColor}` : "border border-neutral-200 bg-white"}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
-  const [activeView, setActiveView] = useState<"home" | "recents" | "shared">("home");
+  const [activeView, setActiveView] = useState<DashboardView>("templates");
   const [notice, setNotice] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -26,48 +173,57 @@ export default function DashboardPage() {
     window.setTimeout(() => setNotice(""), 2200);
   };
 
+  const openTemplate = (template: Template) => {
+    window.localStorage.setItem(
+      "atom:pending-import",
+      JSON.stringify({
+        name: template.name,
+        rows: template.rows
+      })
+    );
+    router.push(`/template-${template.id}`);
+  };
+
+  const handleNavAction = (id: (typeof navItems)[number]["id"]) => {
+    if (id === "new") {
+      openTemplate(templates[0]);
+      return;
+    }
+
+    if (id === "open") {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    setActiveView(id);
+  };
+
+  const listedWorkbooks = activeView === "favourites" ? workbooks.filter((workbook) => workbook.favourite) : workbooks;
+
   return (
-    <main className="grid min-h-dvh grid-cols-1 bg-[#f3f4f2] text-neutral-950 md:grid-cols-[180px_1fr]">
-      <aside className="border-b border-neutral-200 bg-[#e8edea] px-4 py-4 md:border-b-0 md:border-r md:py-8">
-        <div className="mb-8 flex items-center gap-2 text-sm font-bold text-[#217346]">
-          <FileSpreadsheet className="h-5 w-5" />
+    <main className="grid min-h-dvh grid-cols-1 bg-[#f5f6f4] text-neutral-950 md:grid-cols-[240px_1fr]">
+      <aside className="border-b border-neutral-200 bg-[#e8edea] px-4 py-4 md:border-b-0 md:border-r md:px-5 md:py-8">
+        <div className="mb-8 flex h-12 items-center gap-3 rounded-[20px] px-3 text-base font-extrabold text-[#2F7D4D]">
+          <FileSpreadsheet className="h-6 w-6" />
           Atom Sheets
         </div>
-        <nav className="flex gap-2 overflow-x-auto text-sm font-medium text-neutral-700 md:block md:space-y-2">
-          {[
-            { label: "Home", icon: Home, action: () => setActiveView("home"), active: activeView === "home" },
-            { label: "New", icon: Plus, href: "/demo-workbook" },
-            { label: "Recents", icon: Clock3, action: () => setActiveView("recents"), active: activeView === "recents" },
-            { label: "Shared", icon: Users, action: () => setActiveView("shared"), active: activeView === "shared" },
-            { label: "Open", icon: FolderOpen, action: () => fileInputRef.current?.click() }
-          ].map((item) => {
+        <nav className="flex gap-3 overflow-x-auto text-sm font-semibold text-neutral-700 md:flex-col md:overflow-visible">
+          {navItems.map((item) => {
             const Icon = item.icon;
-            return item.href ? (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={
-                  item.active
-                    ? "flex shrink-0 items-center gap-3 rounded-lg bg-white px-3 py-3 text-[#217346]"
-                    : "flex shrink-0 items-center gap-3 rounded-lg px-3 py-3 hover:bg-white"
-                }
-              >
-                <Icon className="h-5 w-5" />
-                {item.label}
-              </Link>
-            ) : (
+            const active = item.id === activeView;
+            return (
               <button
-                key={item.label}
+                key={item.id}
                 type="button"
-                onClick={item.action}
+                onClick={() => handleNavAction(item.id)}
                 className={
-                  item.active
-                    ? "flex shrink-0 items-center gap-3 rounded-lg bg-white px-3 py-3 text-[#217346]"
-                    : "flex shrink-0 items-center gap-3 rounded-lg px-3 py-3 hover:bg-white"
+                  active
+                    ? "flex h-14 min-w-44 shrink-0 items-center gap-3 rounded-[20px] bg-white px-4 text-[#2F7D4D] transition md:w-full"
+                    : "flex h-14 min-w-44 shrink-0 items-center gap-3 rounded-[20px] px-4 text-neutral-700 transition hover:bg-white/75 md:w-full"
                 }
               >
-                <Icon className="h-5 w-5" />
-                {item.label}
+                <Icon className="h-6 w-6 shrink-0" />
+                <span>{item.label}</span>
               </button>
             );
           })}
@@ -78,6 +234,7 @@ export default function DashboardPage() {
           accept=".csv,.tsv,.xlsx,.xlsm,.json"
           className="hidden"
           onChange={(event) => {
+            const input = event.currentTarget;
             const file = event.target.files?.[0];
             if (!file) {
               notify("No file selected");
@@ -93,95 +250,118 @@ export default function DashboardPage() {
                 notify(error instanceof Error ? error.message : "Import failed");
               })
               .finally(() => {
-                event.currentTarget.value = "";
+                input.value = "";
               });
           }}
         />
       </aside>
       <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-semibold">Microsoft Excel-style start</h1>
-          <Link
-            href="/demo-workbook"
-            className="rounded-md bg-[#217346] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#195c37] focus:outline-none focus:ring-2 focus:ring-[#217346] focus:ring-offset-2"
+          <div>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Create your next workbook</h1>
+            <p className="mt-2 max-w-2xl text-sm font-medium text-neutral-600">
+              Choose a real template, open a recent workbook, or import an existing spreadsheet.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => openTemplate(templates[0])}
+            className="h-14 rounded-[20px] bg-[#2F7D4D] px-6 text-sm font-bold text-white transition hover:bg-[#24643d] focus:outline-none focus:ring-2 focus:ring-[#2F7D4D] focus:ring-offset-2"
           >
             New workbook
-          </Link>
+          </button>
         </div>
-        <div className="mt-7 border-b border-neutral-300 pb-7">
-          <div className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            <Grid2X2 className="h-5 w-5 text-[#217346]" />
-            Templates
-          </div>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-            {["Blank Workbook", "Budget", "Task List", "Sales Report", "Project Plan", "Invoice"].map((template, index) => (
-              <Link key={template} href="/demo-workbook" className="group">
-                <div className="h-28 rounded-lg border border-neutral-200 bg-white p-3 transition group-hover:border-[#217346]">
-                  <div className="grid h-full grid-cols-4 grid-rows-5 overflow-hidden rounded border border-neutral-300">
-                    {Array.from({ length: 20 }, (_, cellIndex) => (
-                      <span
-                        key={cellIndex}
-                        className={
-                          cellIndex < 4
-                            ? index % 2 === 0
-                              ? "border border-white/50 bg-[#217346]/80"
-                              : "border border-white/50 bg-[#4aa3df]/80"
-                            : "border border-neutral-200 bg-white"
-                        }
-                      />
-                    ))}
-                  </div>
-                </div>
-                <div className="mt-2 text-center text-sm font-medium">{template}</div>
-              </Link>
-            ))}
-          </div>
-        </div>
-        <div className="mt-6 flex items-center gap-2 overflow-x-auto">
-          {[
-            ["recents", "Recents"],
-            ["home", "Favourites"],
-            ["shared", "Shared with me"]
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={
-                activeView === id
-                  ? "rounded-md bg-[#217346] px-4 py-2 text-sm font-semibold text-white"
-                  : "rounded-md px-4 py-2 text-sm font-semibold text-neutral-500 hover:bg-white"
-              }
-              onClick={() => setActiveView(id as "home" | "recents" | "shared")}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <section className="mt-3 overflow-hidden border-t border-neutral-200 bg-white">
-          <div className="hidden grid-cols-[1fr_180px_180px] border-b border-neutral-200 px-4 py-3 text-xs font-semibold uppercase text-neutral-500 sm:grid">
-            <span>Name</span>
-            <span>Owner</span>
-            <span>Last opened</span>
-          </div>
-          {activeView === "shared" ? (
-            <div className="px-4 py-10 text-sm text-neutral-500">No shared workbooks yet.</div>
-          ) : (
-            workbooks.map((workbook) => (
-          <Link
-            key={workbook.id}
-            href={`/${workbook.id}`}
-              className="grid gap-2 px-4 py-4 text-sm transition hover:bg-neutral-50 focus:bg-green-50 focus:outline-none sm:grid-cols-[1fr_180px_180px]"
-          >
-              <span className="flex items-center gap-3 font-medium">
-                <FileSpreadsheet className="h-5 w-5 text-[#217346]" />
-                {workbook.name}
-              </span>
-            <span className="text-neutral-600">{workbook.owner}</span>
-            <span className="text-neutral-600">{workbook.updatedAt}</span>
-          </Link>
-            ))
-          )}
-        </section>
+
+        {activeView === "templates" ? (
+          <section className="mt-9">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-[18px] bg-white text-[#2F7D4D]">
+                <Grid2X2 className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-extrabold">Templates</h2>
+                <p className="text-sm font-medium text-neutral-500">Every card opens a prefilled workbook.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              {templates.map((template) => {
+                const Icon = template.icon;
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => openTemplate(template)}
+                    className="group rounded-[24px] text-left outline-none transition focus:ring-2 focus:ring-[#2F7D4D] focus:ring-offset-4"
+                  >
+                    <TemplatePreview template={template} />
+                    <div className="mt-3 flex items-start gap-3 px-1">
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[18px] bg-white text-[#2F7D4D]">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-base font-extrabold">{template.name}</div>
+                        <div className="mt-0.5 text-sm font-medium text-neutral-500">{template.description}</div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : (
+          <section className="mt-9">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-extrabold">{activeView === "recents" ? "Recents" : "Favourites"}</h2>
+                <p className="text-sm font-medium text-neutral-500">
+                  {activeView === "recents" ? "Workbooks you opened recently." : "Your pinned workbooks."}
+                </p>
+              </div>
+              <div className="flex rounded-[20px] bg-white p-1">
+                {(["recents", "favourites"] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    className={
+                      activeView === view
+                        ? "h-10 rounded-[16px] bg-[#2F7D4D] px-4 text-sm font-bold capitalize text-white"
+                        : "h-10 rounded-[16px] px-4 text-sm font-bold capitalize text-neutral-500 hover:bg-neutral-100"
+                    }
+                    onClick={() => setActiveView(view)}
+                  >
+                    {view}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[24px] border border-neutral-200 bg-white">
+              <div className="hidden grid-cols-[1fr_180px_180px] border-b border-neutral-200 px-6 py-4 text-xs font-bold uppercase tracking-wide text-neutral-500 sm:grid">
+                <span>Name</span>
+                <span>Owner</span>
+                <span>Last opened</span>
+              </div>
+              {listedWorkbooks.length === 0 ? (
+                <div className="px-6 py-14 text-sm font-medium text-neutral-500">Nothing here yet.</div>
+              ) : (
+                listedWorkbooks.map((workbook) => (
+                  <Link
+                    key={workbook.id}
+                    href={`/${workbook.id}`}
+                    className="grid gap-2 px-6 py-5 text-sm transition hover:bg-[#f7fbf8] focus:bg-[#edf7f0] focus:outline-none sm:grid-cols-[1fr_180px_180px]"
+                  >
+                    <span className="flex items-center gap-3 font-bold">
+                      <FileSpreadsheet className="h-6 w-6 text-[#2F7D4D]" />
+                      {workbook.name}
+                    </span>
+                    <span className="font-medium text-neutral-600">{workbook.owner}</span>
+                    <span className="font-medium text-neutral-600">{workbook.updatedAt}</span>
+                  </Link>
+                ))
+              )}
+            </div>
+          </section>
+        )}
       </section>
       {notice ? (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-neutral-950 px-4 py-2 text-sm font-medium text-white">

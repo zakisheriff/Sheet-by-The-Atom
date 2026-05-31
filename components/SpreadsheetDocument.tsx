@@ -33,6 +33,7 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
   const setWorkbookId = useSpreadsheetStore((state) => state.setWorkbookId);
   const markSaved = useSpreadsheetStore((state) => state.markSaved);
   const dirty = useSpreadsheetStore((state) => state.dirty);
+  const driveFileId = useSpreadsheetStore((state) => state.driveFileId);
   const importRows = useSpreadsheetStore((state) => state.importRows);
   const hydrateWorkbook = useSpreadsheetStore((state) => state.hydrateWorkbook);
   const setDriveState = useSpreadsheetStore((state) => state.setDriveState);
@@ -49,7 +50,8 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
         : nextViewport
     );
   }, []);
-  const { presence } = useCollaboration(workbookId);
+  const collaborationRoomId = driveFileId ? `drive:${driveFileId}` : workbookId;
+  const { presence } = useCollaboration(collaborationRoomId);
   useKeyboard();
   useDriveSync();
   const noticeIsError = isErrorNotice(notice);

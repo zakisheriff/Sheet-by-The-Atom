@@ -245,6 +245,13 @@ NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="replace-with-a-secure-secret"
 REDIS_URL="redis://localhost:6379"
 NEXT_PUBLIC_GOOGLE_CLIENT_ID="your-google-oauth-client-id.apps.googleusercontent.com"
+NEXT_PUBLIC_YJS_WEBSOCKET_URL="ws://localhost:1234"
+```
+
+For local realtime collaboration, run a Yjs websocket server in a second terminal:
+
+```bash
+npm run collab
 ```
 
 ### 4. Generate Prisma Client

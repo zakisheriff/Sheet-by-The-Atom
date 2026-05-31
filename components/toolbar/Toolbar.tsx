@@ -94,14 +94,8 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
       return;
     }
 
-    const url = window.location.href;
-    if (navigator.share) {
-      await navigator.share({ title: "Atom Sheets", url });
-      onNotify("Share sheet opened");
-      return;
-    }
-    await navigator.clipboard.writeText(url);
-    onNotify("Workbook link copied");
+    onNotify("Saving to Drive before sharing...");
+    await saveToDrive({ openShareAfterSave: true });
   };
 
   const exportWorkbook = async (format: WorkbookExportFormat) => {
@@ -145,7 +139,7 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
     }
   });
 
-  const saveToDrive = async () => {
+  const saveToDrive = async (options: { openShareAfterSave?: boolean } = {}) => {
     setDriveSaving(true);
     try {
       if (!driveSession) {
@@ -166,6 +160,9 @@ export function Toolbar({ onOpenFind, onNotify }: ToolbarProps) {
         error: null
       });
       markSaved();
+      if (options.openShareAfterSave) {
+        setShareModalOpen(true);
+      }
       onNotify("Saved to Google Drive");
     } catch (error) {
       onNotify(error instanceof Error ? error.message : "Google Drive save failed");

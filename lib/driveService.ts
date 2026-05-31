@@ -7,6 +7,7 @@ const PROFILE_SCOPES = "openid profile email";
 const GOOGLE_USERINFO_ENDPOINT = "https://www.googleapis.com/oauth2/v3/userinfo";
 const DRIVE_UPLOAD_ENDPOINT = "https://www.googleapis.com/upload/drive/v3/files";
 const DRIVE_FILES_ENDPOINT = "https://www.googleapis.com/drive/v3/files";
+const DRIVE_PERMISSIONS_ENDPOINT = "https://www.googleapis.com/drive/v3/files";
 const TOKEN_EXPIRY_BUFFER_MS = 60_000;
 
 export type GoogleDriveProfile = {
@@ -439,6 +440,31 @@ function parseDriveFileResponse(response: DriveFileResponse, fallbackName: strin
   };
 }
 
+async function enableAnyoneWithLinkEditing(fileId: string): Promise<void> {
+  const response = await driveRequest(
+    `${DRIVE_PERMISSIONS_ENDPOINT}/${encodeURIComponent(fileId)}/permissions?fields=id`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        role: "writer",
+        type: "anyone"
+      })
+    }
+  );
+
+  if (response.status === 400 || response.status === 403) {
+    console.warn("Drive link editing permission could not be applied. Users may need file access from Drive.", response.status);
+    return;
+  }
+
+  if (!response.ok) {
+    console.warn("Drive link editing permission failed.", response.status);
+  }
+}
+
 export async function saveWorkbookToDrive(params: {
   fileId?: string | null;
   title: string;
@@ -475,7 +501,9 @@ export async function saveWorkbookToDrive(params: {
     throw new Error(`Google Drive save failed (${response.status}).`);
   }
 
-  return parseDriveFileResponse((await response.json()) as DriveFileResponse, filename);
+  const result = parseDriveFileResponse((await response.json()) as DriveFileResponse, filename);
+  await enableAnyoneWithLinkEditing(result.fileId);
+  return result;
 }
 
 export async function fetchDriveFileMetadata(fileId: string): Promise<DriveFileMetadata> {

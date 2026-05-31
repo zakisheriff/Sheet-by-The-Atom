@@ -5,11 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "collab": "y-websocket --port 1234",
+    "postinstall": "prisma generate",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:push": "prisma db push"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",

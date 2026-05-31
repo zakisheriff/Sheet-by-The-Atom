@@ -248,6 +248,13 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID="your-google-oauth-client-id.apps.googleusercontent
 NEXT_PUBLIC_YJS_WEBSOCKET_URL="ws://localhost:1234"
 ```
 
+Production values for **sheets.theatom.lk**:
+
+```env
+NEXTAUTH_URL="https://sheets.theatom.lk"
+NEXT_PUBLIC_YJS_WEBSOCKET_URL="wss://zakisheriff-sheets.hf.space"
+```
+
 For local realtime collaboration, run a Yjs websocket server in a second terminal:
 
 ```bash
@@ -260,6 +267,18 @@ npm run collab
 npm run prisma:generate
 ```
 
+For a fresh production database, deploy the Prisma schema:
+
+```bash
+npm run prisma:deploy
+```
+
+If you are using Neon through Vercel without migration files yet, push the current schema:
+
+```bash
+npm run prisma:push
+```
+
 ### 5. Run the Application
 
 ```bash
@@ -267,6 +286,12 @@ npm run dev
 ```
 
 Visit **http://localhost:3000/demo-workbook** 🎉
+
+Production health check:
+
+```text
+https://sheets.theatom.lk/api/health
+```
 
 ---
 

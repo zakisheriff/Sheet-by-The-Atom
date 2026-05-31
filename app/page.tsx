@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart3,
@@ -19,6 +20,8 @@ import {
 import { Suspense, useEffect, useRef, useState } from "react";
 import { createDriveShareUrl, fetchDriveFileMetadata, fetchWorkbookFromDrive, validateDriveFileId } from "@/lib/driveService";
 import { importWorkbookFile } from "@/lib/workbook-io";
+
+const logoSrc = "/Logo.png";
 
 type DashboardView = "templates" | "recents" | "favourites";
 
@@ -244,7 +247,7 @@ function DashboardContent() {
     <main className="grid min-h-dvh grid-cols-1 bg-[#f5f6f4] text-neutral-950 md:grid-cols-[240px_1fr]">
       <aside className="border-b border-neutral-200 bg-[#e8edea] px-4 py-4 md:border-b-0 md:border-r md:px-5 md:py-8">
         <div className="mb-8 flex h-12 items-center gap-3 rounded-[20px] px-3 text-base font-extrabold text-[#2F7D4D]">
-          <FileSpreadsheet className="h-6 w-6" />
+          <Image src={logoSrc} alt="Sheets by The Atom logo" width={30} height={30} className="rounded-[9px]" priority />
           Atom Sheets
         </div>
         <nav className="flex gap-3 overflow-x-auto text-sm font-semibold text-neutral-700 md:flex-col md:overflow-visible">
@@ -391,7 +394,7 @@ function DashboardContent() {
                     className="grid gap-2 px-6 py-5 text-sm transition hover:bg-[#f7fbf8] focus:bg-[#edf7f0] focus:outline-none sm:grid-cols-[1fr_180px_180px]"
                   >
                     <span className="flex items-center gap-3 font-bold">
-                      <FileSpreadsheet className="h-6 w-6 text-[#2F7D4D]" />
+                      <Image src={logoSrc} alt="" width={26} height={26} className="rounded-[8px]" />
                       {workbook.name}
                     </span>
                     <span className="font-medium text-neutral-600">{workbook.owner}</span>

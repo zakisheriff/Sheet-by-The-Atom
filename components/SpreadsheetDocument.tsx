@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft } from "lucide-react";
 import { CanvasGrid } from "./grid/Canvas";
 import { CellEditor } from "./grid/CellEditor";
@@ -20,6 +21,8 @@ import type { Viewport } from "@/hooks/useGrid";
 import { useKeyboard } from "@/hooks/useKeyboard";
 import type { Sheet } from "@/lib/grid";
 import { useSpreadsheetStore } from "@/lib/store";
+
+const logoSrc = "/Logo.png";
 
 type SpreadsheetDocumentProps = {
   workbookId: string;
@@ -152,6 +155,7 @@ export function SpreadsheetDocument({ workbookId }: SpreadsheetDocumentProps) {
             aria-label="Back to start page"
           >
             <ArrowLeft className="h-4 w-4" />
+            <Image src={logoSrc} alt="" width={20} height={20} className="hidden rounded-[6px] sm:block" />
             <span className="hidden sm:inline">Start</span>
           </Link>
           <button
